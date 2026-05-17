@@ -7,7 +7,7 @@ import { precioArma, ArmaInput } from "@/lib/precios";
 
 export default function SeccionArmas() {
   const [parte, setParte] = useState("");
-  const [nivel, setNivel] = useState("10");
+  const [nivel, setNivel] = useState("9");
   const [exeRate, setExeRate] = useState(false);
   const [dmgLvl20, setDmgLvl20] = useState(false);
   const [dmg2pct, setDmg2pct] = useState(false);
@@ -15,6 +15,7 @@ export default function SeccionArmas() {
   const [tipo, setTipo] = useState<"" | "s3" | "380" | "400">("");
   const [socket, setSocket] = useState("");
   const [luck, setLuck] = useState(true);
+  const [skill, setSkill] = useState(true);
 
   const precio = useMemo(() => {
     const input: ArmaInput = {
@@ -22,10 +23,10 @@ export default function SeccionArmas() {
       nivel: Number(nivel) || 0,
       tipo: tipo || null,
       socket: socket === "" ? null : Number(socket),
-      luck,
+      luck, skill,
     };
     return precioArma(input);
-  }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck]);
+  }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill]);
 
   const opciones = [
     exeRate ? "exe rate 10%" : null,
@@ -39,7 +40,7 @@ export default function SeccionArmas() {
     `• Nivel: ${nivel}`,
     `• Opciones: ${opciones}`,
     `• Tipo: ${tipo || "—"}${socket !== "" ? ` · socket ${socket}` : ""}`,
-    `• Luck: ${luck ? "Sí" : "No"}`,
+    `• Luck: ${luck ? "Sí" : "No"} · Skill: ${skill ? "Sí" : "No"}`,
   ].join("\n");
 
   const motivoNoPrecio = !tipo
@@ -95,14 +96,30 @@ export default function SeccionArmas() {
             />
           </div>
           <div>
-            <FieldLabel>Socket (0 a 3)</FieldLabel>
+            <FieldLabel>Socket (0 a 3) · solo tipo 400</FieldLabel>
             <TextInput value={socket} onChange={setSocket} type="number" min={0} max={3} placeholder="0" />
+            {tipo === "400" && socket !== "" && Number(socket) > 0 && (
+              <p className="text-[10px] font-body text-luck-gold mt-1.5 uppercase tracking-wider">
+                +{(Number(socket) * 1200).toLocaleString("es-AR")} WC por sockets
+              </p>
+            )}
           </div>
         </div>
 
-        <div>
-          <FieldLabel>¿Tiene Luck?</FieldLabel>
-          <PillToggle value={luck} onChange={setLuck} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>¿Tiene Luck?</FieldLabel>
+            <PillToggle value={luck} onChange={setLuck} />
+          </div>
+          <div>
+            <FieldLabel>¿Tiene Skill?</FieldLabel>
+            <PillToggle value={skill} onChange={setSkill} />
+            {!skill && (
+              <p className="text-[10px] font-body text-neon-orange mt-1.5 uppercase tracking-wider">
+                Armas sin skill: ×0,25
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

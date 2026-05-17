@@ -83,8 +83,13 @@ export default function SeccionArmaduras() {
             />
           </div>
           <div>
-            <FieldLabel>Socket (0 a 3)</FieldLabel>
+            <FieldLabel>Socket (0 a 3) · solo tipo 400</FieldLabel>
             <TextInput value={socket} onChange={setSocket} type="number" min={0} max={3} placeholder="0" />
+            {tipo === "400" && socket !== "" && Number(socket) > 0 && (
+              <p className="text-[10px] font-body text-luck-gold mt-1.5 uppercase tracking-wider">
+                +{(Number(socket) * 600).toLocaleString("es-AR")} WC por sockets
+              </p>
+            )}
           </div>
         </div>
 

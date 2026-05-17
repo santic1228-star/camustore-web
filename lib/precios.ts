@@ -26,13 +26,14 @@ function precioPorNivel(base: number, baseLvl15: number, nivel: number): number 
 // =====================================================
 // HP + DD + REF son indispensables (un solo checkbox).
 // Sin las 3 opciones → no se compra.
-// Sin luck → ×0,25.
+// Sin luck → ×0,25 (no afecta el bonus de socket).
+// Sockets (solo tipo 400) → +600 WC por socket, sumado AL FINAL.
 
 export interface ArmaduraInput {
   hpDdRef: boolean;
   nivel: number;          // 0-15
   tipo: "s3" | "380" | "400" | null;
-  socket: number | null;  // 0-3
+  socket: number | null;  // 0-3 (solo tipo 400)
   luck: boolean;
 }
 
@@ -46,22 +47,25 @@ export function precioArmadura(input: ArmaduraInput): number | null {
   let base = 0, baseLvl15 = 0;
   if (tipo === "s3") {
     base = 500;
-    baseLvl15 = 1500;       // 500 + 1000
+    baseLvl15 = 1500;
   } else if (tipo === "380") {
     base = 800;
-    baseLvl15 = 2100;       // 800 + 1300
+    baseLvl15 = 2100;
   } else if (tipo === "400") {
     base = 1000;
-    baseLvl15 = 3000;       // 1000 + 2000
-    if (socket === 3) {
-      base += 1000;
-      baseLvl15 += 1000;
-    }
+    baseLvl15 = 3000;
   }
 
   const precioPorLvl = precioPorNivel(base, baseLvl15, nivel);
   const factorLuck = luck ? 1 : 0.25;
-  return Math.round(precioPorLvl * factorLuck);
+  let precio = precioPorLvl * factorLuck;
+
+  // Bonus por socket (solo aplica a 400, plano al final)
+  if (tipo === "400" && socket && socket > 0) {
+    precio += socket * 600;
+  }
+
+  return Math.round(precio);
 }
 
 // =====================================================
@@ -69,7 +73,10 @@ export function precioArmadura(input: ArmaduraInput): number | null {
 // =====================================================
 // exe rate 10% + dmg +2% son indispensables.
 // 3ra opción: dmg lvl/20 O speed +7 (cualquiera).
-// +50% final al precio (después de aplicar nivel y luck).
+// +50% sobre precio base (×1.5).
+// Sin luck → ×0,25.
+// Sin skill → ×0,25 (paga solo el 25% del precio que tendría con skill).
+// Sockets (solo tipo 400) → +1.200 WC por socket, sumado AL FINAL.
 
 export interface ArmaInput {
   exeRate: boolean;
@@ -80,10 +87,11 @@ export interface ArmaInput {
   tipo: "s3" | "380" | "400" | null;
   socket: number | null;
   luck: boolean;
+  skill: boolean;          // tiene skill (cyclone, etc.)
 }
 
 export function precioArma(input: ArmaInput): number | null {
-  const { exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck } = input;
+  const { exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill } = input;
 
   if (!tipo) return null;
   if (!exeRate || !dmg2pct) return null;
@@ -99,16 +107,21 @@ export function precioArma(input: ArmaInput): number | null {
   } else if (tipo === "400") {
     base = 1000;
     baseLvl15 = 3000;
-    if (socket === 3) {
-      base += 1000;
-      baseLvl15 += 1000;
-    }
   }
 
   const precioPorLvl = precioPorNivel(base, baseLvl15, nivel);
   const factorLuck = luck ? 1 : 0.25;
-  // +50% final por ser arma
-  return Math.round(precioPorLvl * factorLuck * 1.5);
+  const factorSkill = skill ? 1 : 0.25;
+
+  // Precio base × luck × skill × 1.5 (markup de armas)
+  let precio = precioPorLvl * factorLuck * factorSkill * 1.5;
+
+  // Bonus por socket (solo aplica a 400, plano al final)
+  if (tipo === "400" && socket && socket > 0) {
+    precio += socket * 1200;
+  }
+
+  return Math.round(precio);
 }
 
 // =====================================================
