@@ -60,9 +60,10 @@ export function precioArmadura(input: ArmaduraInput): number | null {
   const factorLuck = luck ? 1 : 0.25;
   let precio = precioPorLvl * factorLuck;
 
-  // Bonus por socket (solo aplica a 400, plano al final)
+  // Bonus por socket (solo aplica a 400, plano al final, máximo 3 sockets)
   if (tipo === "400" && socket && socket > 0) {
-    precio += socket * 600;
+    const socketsValidos = Math.min(3, socket);
+    precio += socketsValidos * 600;
   }
 
   return Math.round(precio);
@@ -116,9 +117,10 @@ export function precioArma(input: ArmaInput): number | null {
   // Precio base × luck × skill × 1.5 (markup de armas)
   let precio = precioPorLvl * factorLuck * factorSkill * 1.5;
 
-  // Bonus por socket (solo aplica a 400, plano al final)
+  // Bonus por socket (solo aplica a 400, plano al final, máximo 3 sockets)
   if (tipo === "400" && socket && socket > 0) {
-    precio += socket * 1200;
+    const socketsValidos = Math.min(3, socket);
+    precio += socketsValidos * 1200;
   }
 
   return Math.round(precio);

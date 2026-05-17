@@ -11,7 +11,7 @@ export default function SeccionArmaduras() {
   const [nivel, setNivel] = useState("10");
   const [hpDdRef, setHpDdRef] = useState(false);
   const [tipo, setTipo] = useState<"" | "s3" | "380" | "400">("");
-  const [socket, setSocket] = useState("");
+  const [socket, setSocket] = useState<number>(0);  // 0, 1, 2 o 3
   const [luck, setLuck] = useState(true);
 
   const precio = useMemo(() => {
@@ -19,7 +19,7 @@ export default function SeccionArmaduras() {
       hpDdRef,
       nivel: Number(nivel) || 0,
       tipo: tipo || null,
-      socket: socket === "" ? null : Number(socket),
+      socket: tipo === "400" ? socket : null,
       luck,
     };
     return precioArmadura(input);
@@ -28,7 +28,7 @@ export default function SeccionArmaduras() {
   const descripcion = [
     `• Armadura: ${nombre || "(sin nombre)"} ${parte || ""}`.trim(),
     `• Nivel: ${nivel}`,
-    `• Tipo: ${tipo || "—"}${socket !== "" ? ` · socket ${socket}` : ""}`,
+    `• Tipo: ${tipo || "—"}${tipo === "400" && socket > 0 ? ` · ${socket} socket${socket === 1 ? "" : "s"}` : ""}`,
     `• HP + DD + REF: ${hpDdRef ? "Sí" : "No"} · Luck: ${luck ? "Sí" : "No"}`,
   ].join("\n");
 
@@ -83,11 +83,26 @@ export default function SeccionArmaduras() {
             />
           </div>
           <div>
-            <FieldLabel>Socket (0 a 3) · solo tipo 400</FieldLabel>
-            <TextInput value={socket} onChange={setSocket} type="number" min={0} max={3} placeholder="0" />
-            {tipo === "400" && socket !== "" && Number(socket) > 0 && (
+            <FieldLabel>Sockets {tipo === "400" ? "" : "· solo 400"}</FieldLabel>
+            <div className={`inline-flex bg-bg-card border border-border-base rounded p-0.5 gap-0.5 w-full ${tipo !== "400" ? "opacity-40 pointer-events-none" : ""}`}>
+              {[0, 1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setSocket(n)}
+                  className={`flex-1 px-2 py-1.5 rounded font-numeric text-sm font-bold transition-all ${
+                    socket === n
+                      ? "bg-neon-cyan text-bg-deep"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {tipo === "400" && socket > 0 && (
               <p className="text-[10px] font-body text-luck-gold mt-1.5 uppercase tracking-wider">
-                +{(Number(socket) * 600).toLocaleString("es-AR")} WC por sockets
+                +{(socket * 600).toLocaleString("es-AR")} WC por sockets
               </p>
             )}
           </div>
