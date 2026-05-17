@@ -48,4 +48,4 @@ Después abrí http://localhost:3000
 - [ ] Auth con Google para consignación
 - [ ] Panel admin (aprobar items)
 - [ ] Categorías de jewels y seeds
-- [ ] Imágenes de personajes por raza
+- [ ] Imágenes de personajes por raza 
