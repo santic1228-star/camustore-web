@@ -62,13 +62,36 @@ export default function ItemFormModal({ onClose, onSaved }: Props) {
 }
 
 /**
- * Calcula el precio de venta a partir del precio de compra.
- * Política actual: s3/380 ×3, 400 ×4.
+ * Calcula el precio de venta a partir del precio de compra del cotizador.
+ *
+ * IMPORTANTE: el "precioCompraCotizador" es SIEMPRE el precio teórico
+ * que devuelve el cotizador, NO el precio_compra real (que puede haber sido
+ * negociado distinto). El precio de venta es UNIFORME para todos los items
+ * de una misma categoría/tipo.
+ *
+ * Multiplicadores:
+ *   - Armadura/Arma s3 o 380 → ×3
+ *   - Armadura/Arma 400     → ×4
+ *   - Ala                   → ×2.1 (tipo siempre s3, no aplica multiplicador por tipo)
+ *   - Jewel                 → ×2
+ *   - Seed                  → ×3.5
  */
-function calcularPrecioVenta(precioCompra: number, tipo: "s3" | "380" | "400" | null): number {
-  if (!tipo) return precioCompra;
-  const multiplicador = tipo === "400" ? 4 : 3;
-  return Math.round(precioCompra * multiplicador);
+function calcularPrecioVenta(
+  precioCompraCotizador: number,
+  categoria: "armadura" | "arma" | "ala" | "jewel" | "seed",
+  tipo: "s3" | "380" | "400" | null
+): number {
+  let mult = 1;
+  if (categoria === "armadura" || categoria === "arma") {
+    mult = tipo === "400" ? 4 : 3;
+  } else if (categoria === "ala") {
+    mult = 2.1;
+  } else if (categoria === "jewel") {
+    mult = 2;
+  } else if (categoria === "seed") {
+    mult = 3.5;
+  }
+  return Math.round(precioCompraCotizador * mult);
 }
 
 // =====================================================
@@ -161,7 +184,8 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
     });
   }, [hpDdRef, nivel, tipo, socket, luck]);
 
-  // Si el admin override el precio de compra, usa ese; sino el calculado
+  // precio_compra real = override del admin (si lo puso) o el del cotizador.
+  // Es SOLO informativo, no afecta el precio de venta.
   const precioCompraFinal = useMemo(() => {
     if (precioCompraOverride && Number(precioCompraOverride) > 0) {
       return Number(precioCompraOverride);
@@ -170,9 +194,9 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
   }, [precioCompraOverride, precioCompraCalc]);
 
   const precioVentaCalc = useMemo(() => {
-    if (precioCompraFinal === null) return null;
-    return calcularPrecioVenta(precioCompraFinal, tipo || null);
-  }, [precioCompraFinal, tipo]);
+    if (precioCompraCalc === null) return null;
+    return calcularPrecioVenta(precioCompraCalc, "armadura", tipo || null);
+  }, [precioCompraCalc, tipo]);
 
   async function guardar() {
     if (precioVentaCalc === null) return;
@@ -187,8 +211,8 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
       socket: tipo === "400" ? socket : 0,
       hp_dd_ref: hpDdRef,
       luck,
-      precio_compra: precioCompraFinal,
-      precio_venta: precioVentaCalc,
+      precio_compra: precioCompraFinal,    // lo que realmente pagaste (informativo)
+      precio_venta: precioVentaCalc,        // siempre uniforme según cotizador × multiplicador
       dueno: dueno.trim() || null,
       estado: "activo",
     });
@@ -319,6 +343,7 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
     });
   }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill]);
 
+  // precio_compra real (informativo)
   const precioCompraFinal = useMemo(() => {
     if (precioCompraOverride && Number(precioCompraOverride) > 0) {
       return Number(precioCompraOverride);
@@ -327,9 +352,9 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
   }, [precioCompraOverride, precioCompraCalc]);
 
   const precioVentaCalc = useMemo(() => {
-    if (precioCompraFinal === null) return null;
-    return calcularPrecioVenta(precioCompraFinal, tipo || null);
-  }, [precioCompraFinal, tipo]);
+    if (precioCompraCalc === null) return null;
+    return calcularPrecioVenta(precioCompraCalc, "arma", tipo || null);
+  }, [precioCompraCalc, tipo]);
 
   async function guardar() {
     if (precioVentaCalc === null) return;
@@ -477,6 +502,7 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
     });
   }, [ignore, returnOpc, lifeRecovery, luck, nivel]);
 
+  // precio_compra real (informativo, no afecta venta)
   const precioCompraFinal = useMemo(() => {
     if (precioCompraOverride && Number(precioCompraOverride) > 0) {
       return Number(precioCompraOverride);
@@ -484,11 +510,11 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
     return precioCompraCalc;
   }, [precioCompraOverride, precioCompraCalc]);
 
-  // Alas son siempre tipo s3 → ×3
+  // Alas siempre × 2.1 (tipo s3 implícito)
   const precioVentaCalc = useMemo(() => {
-    if (precioCompraFinal === null) return null;
-    return calcularPrecioVenta(precioCompraFinal, "s3");
-  }, [precioCompraFinal]);
+    if (precioCompraCalc === null) return null;
+    return calcularPrecioVenta(precioCompraCalc, "ala", "s3");
+  }, [precioCompraCalc]);
 
   async function guardar() {
     if (precioVentaCalc === null) return;

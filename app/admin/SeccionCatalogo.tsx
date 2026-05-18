@@ -36,6 +36,7 @@ export default function SeccionCatalogo() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<EstadoItem | "todos">("activo");
+  const [query, setQuery] = useState("");
 
   async function cargar() {
     setLoading(true);
@@ -75,7 +76,22 @@ export default function SeccionCatalogo() {
     }
   }
 
-  const visibles = items.filter((i) => filtroEstado === "todos" || i.estado === filtroEstado);
+  const visibles = items.filter((i) => {
+    // Filtro por estado
+    if (filtroEstado !== "todos" && i.estado !== filtroEstado) return false;
+    // Filtro por búsqueda
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      const haystack = [
+        i.nombre, i.parte, i.raza, String(i.nivel),
+        i.tipo, i.categoria, i.dueno, i.estado,
+        i.luck ? "luck" : "",
+        i.socket ? `${i.socket} socket` : "",
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
 
   const stats = {
     activo: items.filter((i) => i.estado === "activo").length,
@@ -100,6 +116,21 @@ export default function SeccionCatalogo() {
         >
           + Nuevo item
         </button>
+      </div>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar: nombre, parte, raza, tipo, nivel, dueño..."
+          className="w-full bg-bg-card border border-border-base focus:border-neon-cyan rounded px-3 py-2.5 font-body text-text-primary placeholder:text-text-muted outline-none transition-colors"
+        />
+        {query && (
+          <p className="text-[10px] font-body text-text-muted mt-1.5 uppercase tracking-wider">
+            {visibles.length} {visibles.length === 1 ? "resultado" : "resultados"}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
