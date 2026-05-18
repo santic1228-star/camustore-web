@@ -6,8 +6,22 @@ import { supabase } from "./supabase";
 import type { User } from "@supabase/supabase-js";
 
 /**
- * Manda un magic link al email del usuario para loguearse.
- * El link redirige a /admin después del login.
+ * Login con email + contraseña (para admins).
+ */
+export async function signInWithPassword(
+  email: string,
+  password: string
+): Promise<{ error?: string }> {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    console.error("Error en login:", error);
+    return { error: error.message };
+  }
+  return {};
+}
+
+/**
+ * Manda un magic link al email del usuario para loguearse (para jugadores).
  */
 export async function sendMagicLink(email: string): Promise<{ error?: string }> {
   const { error } = await supabase.auth.signInWithOtp({

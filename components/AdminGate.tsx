@@ -2,7 +2,7 @@
 
 import { useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import { sendMagicLink, checkIsAdmin, signOut } from "@/lib/auth";
+import { signInWithPassword, checkIsAdmin, signOut } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Wrapper que protege rutas admin.
- * - Si no hay sesión, muestra el form de magic link.
+ * - Si no hay sesión, muestra el form de login (email + password).
  * - Si hay sesión pero el email no está en `admins`, muestra mensaje de "no autorizado".
  * - Si todo OK, renderiza children pasándole el user.
  */
@@ -59,23 +59,20 @@ export default function AdminGate({ children }: Props) {
     );
   }
 
-  // No hay sesión → form de login
   if (!user) {
     return <LoginForm />;
   }
 
-  // Sesión sí, pero no es admin
   if (!isAdmin) {
     return <NotAuthorized email={user.email || ""} />;
   }
 
-  // Es admin → render children
   return <>{children(user)}</>;
 }
 
 function LoginForm() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,13 +80,18 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await sendMagicLink(email.trim().toLowerCase());
+    const { error } = await signInWithPassword(email.trim().toLowerCase(), password);
     setLoading(false);
     if (error) {
-      setError(error);
-    } else {
-      setSent(true);
+      setError(traducirError(error));
     }
+    // No hace falta más: el onAuthStateChange detecta el login y rehace el render.
+  }
+
+  function traducirError(err: string): string {
+    if (err.includes("Invalid login credentials")) return "Email o contraseña incorrectos.";
+    if (err.includes("Email not confirmed")) return "Email aún no confirmado.";
+    return err;
   }
 
   return (
@@ -99,48 +101,54 @@ function LoginForm() {
           Acceso Admin
         </h1>
         <p className="font-body text-sm text-text-secondary mb-6">
-          Ingresá tu email. Te mandamos un link para entrar sin contraseña.
+          Ingresá tu email y contraseña de administrador.
         </p>
 
-        {sent ? (
-          <div className="border border-neon-cyan/50 bg-neon-cyan/5 rounded p-4">
-            <p className="font-body text-sm text-neon-cyan">
-              ✉ Listo, revisá tu casilla. El link expira en 1 hora.
-            </p>
-            <p className="font-body text-xs text-text-muted mt-2">
-              ¿No te llega? Verificá la carpeta de spam.
-            </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block font-body text-xs uppercase tracking-widest text-text-secondary mb-1.5">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu@email.com"
+              className="w-full bg-bg-card border border-border-base focus:border-neon-cyan rounded px-3 py-2.5 font-body text-text-primary placeholder:text-text-muted outline-none transition-colors"
+              disabled={loading}
+            />
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block font-body text-xs uppercase tracking-widest text-text-secondary mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
-                className="w-full bg-bg-card border border-border-base focus:border-neon-cyan rounded px-3 py-2.5 font-body text-text-primary placeholder:text-text-muted outline-none transition-colors"
-                disabled={loading}
-              />
-            </div>
 
-            {error && (
-              <p className="font-body text-xs text-danger-red">{error}</p>
-            )}
+          <div>
+            <label className="block font-body text-xs uppercase tracking-widest text-text-secondary mb-1.5">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-bg-card border border-border-base focus:border-neon-cyan rounded px-3 py-2.5 font-body text-text-primary placeholder:text-text-muted outline-none transition-colors"
+              disabled={loading}
+            />
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading || !email}
-              className="btn-primary w-full px-6 py-3 rounded font-body text-sm uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Enviando..." : "Enviar link"}
-            </button>
-          </form>
-        )}
+          {error && (
+            <p className="font-body text-xs text-danger-red">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !email || !password}
+            className="btn-primary w-full px-6 py-3 rounded font-body text-sm uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Ingresando..." : "Ingresar"}
+          </button>
+        </form>
       </div>
     </div>
   );

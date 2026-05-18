@@ -61,17 +61,28 @@ export default function ItemFormModal({ onClose, onSaved }: Props) {
   );
 }
 
+/**
+ * Calcula el precio de venta a partir del precio de compra.
+ * Política actual: s3/380 ×3, 400 ×4.
+ */
+function calcularPrecioVenta(precioCompra: number, tipo: "s3" | "380" | "400" | null): number {
+  if (!tipo) return precioCompra;
+  const multiplicador = tipo === "400" ? 4 : 3;
+  return Math.round(precioCompra * multiplicador);
+}
+
 // =====================================================
 // COMÚN: footer con precio y botón guardar
 // =====================================================
 function PriceFooter({
-  precio, dueno, setDueno, precioCompra, setPrecioCompra, onSave, saving, canSave,
+  precioCompraCalc, precioVentaCalc, dueno, setDueno, precioCompraOverride, setPrecioCompraOverride, onSave, saving, canSave,
 }: {
-  precio: number | null;
+  precioCompraCalc: number | null;
+  precioVentaCalc: number | null;
   dueno: string;
   setDueno: (s: string) => void;
-  precioCompra: string;
-  setPrecioCompra: (s: string) => void;
+  precioCompraOverride: string;
+  setPrecioCompraOverride: (s: string) => void;
   onSave: () => void;
   saving: boolean;
   canSave: boolean;
@@ -84,28 +95,37 @@ function PriceFooter({
           <TextInput value={dueno} onChange={setDueno} placeholder="Nick del jugador..." />
         </div>
         <div>
-          <FieldLabel>Precio compra (lo que pagaste)</FieldLabel>
-          <TextInput value={precioCompra} onChange={setPrecioCompra} type="number" placeholder="ej: 1000" />
+          <FieldLabel>Precio compra (override opcional)</FieldLabel>
+          <TextInput value={precioCompraOverride} onChange={setPrecioCompraOverride} type="number" placeholder={precioCompraCalc ? String(precioCompraCalc) : "auto"} />
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4 p-4 rounded bg-bg-card border border-border-base">
-        <div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="p-4 rounded bg-bg-card border border-border-base">
           <p className="text-[10px] font-body text-text-muted uppercase tracking-widest mb-1">
-            Precio de venta (calculado)
+            Pagás al jugador
           </p>
-          <p className="font-numeric font-bold text-2xl neon-text-orange">
-            {precio !== null ? precio.toLocaleString("es-AR") + " WC" : "—"}
+          <p className="font-numeric font-bold text-xl text-text-secondary">
+            {precioCompraCalc !== null ? precioCompraCalc.toLocaleString("es-AR") : "—"} <span className="text-xs text-text-muted">WC</span>
           </p>
         </div>
-        <button
-          onClick={onSave}
-          disabled={!canSave || saving || precio === null}
-          className="btn-primary px-6 py-3 rounded font-body text-xs uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {saving ? "Guardando..." : "Guardar item"}
-        </button>
+        <div className="p-4 rounded bg-bg-card border border-neon-orange/40">
+          <p className="text-[10px] font-body text-neon-orange uppercase tracking-widest mb-1">
+            Precio de venta (público)
+          </p>
+          <p className="font-numeric font-bold text-2xl neon-text-orange">
+            {precioVentaCalc !== null ? precioVentaCalc.toLocaleString("es-AR") : "—"} <span className="text-xs text-text-muted">WC</span>
+          </p>
+        </div>
       </div>
+
+      <button
+        onClick={onSave}
+        disabled={!canSave || saving || precioVentaCalc === null}
+        className="btn-primary w-full px-6 py-3 rounded font-body text-xs uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {saving ? "Guardando..." : "Guardar item"}
+      </button>
     </div>
   );
 }
@@ -123,10 +143,9 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
   const [socket, setSocket] = useState(0);
   const [luck, setLuck] = useState(true);
   const [dueno, setDueno] = useState("");
-  const [precioCompra, setPrecioCompra] = useState("");
+  const [precioCompraOverride, setPrecioCompraOverride] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Auto-completa raza al cambiar nombre
   function onNombreChange(s: string) {
     setNombre(s);
     if (!raza) {
@@ -135,14 +154,28 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
     }
   }
 
-  const precio = useMemo(() => {
+  const precioCompraCalc = useMemo(() => {
     return precioArmadura({
       hpDdRef, nivel: Number(nivel) || 0, tipo: tipo || null,
       socket: tipo === "400" ? socket : null, luck,
     });
   }, [hpDdRef, nivel, tipo, socket, luck]);
 
+  // Si el admin override el precio de compra, usa ese; sino el calculado
+  const precioCompraFinal = useMemo(() => {
+    if (precioCompraOverride && Number(precioCompraOverride) > 0) {
+      return Number(precioCompraOverride);
+    }
+    return precioCompraCalc;
+  }, [precioCompraOverride, precioCompraCalc]);
+
+  const precioVentaCalc = useMemo(() => {
+    if (precioCompraFinal === null) return null;
+    return calcularPrecioVenta(precioCompraFinal, tipo || null);
+  }, [precioCompraFinal, tipo]);
+
   async function guardar() {
+    if (precioVentaCalc === null) return;
     setSaving(true);
     const { error } = await supabase.from("items").insert({
       categoria: "armadura" as Categoria,
@@ -154,8 +187,8 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
       socket: tipo === "400" ? socket : 0,
       hp_dd_ref: hpDdRef,
       luck,
-      precio_venta: precio!,
-      precio_compra: precioCompra ? Number(precioCompra) : null,
+      precio_compra: precioCompraFinal,
+      precio_venta: precioVentaCalc,
       dueno: dueno.trim() || null,
       estado: "activo",
     });
@@ -234,14 +267,15 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
       </div>
 
       <PriceFooter
-        precio={precio}
+        precioCompraCalc={precioCompraFinal}
+        precioVentaCalc={precioVentaCalc}
         dueno={dueno}
         setDueno={setDueno}
-        precioCompra={precioCompra}
-        setPrecioCompra={setPrecioCompra}
+        precioCompraOverride={precioCompraOverride}
+        setPrecioCompraOverride={setPrecioCompraOverride}
         onSave={guardar}
         saving={saving}
-        canSave={!!nombre && !!tipo && precio !== null}
+        canSave={!!nombre && !!tipo && precioVentaCalc !== null}
       />
     </div>
   );
@@ -264,7 +298,7 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
   const [luck, setLuck] = useState(true);
   const [skill, setSkill] = useState(true);
   const [dueno, setDueno] = useState("");
-  const [precioCompra, setPrecioCompra] = useState("");
+  const [precioCompraOverride, setPrecioCompraOverride] = useState("");
   const [saving, setSaving] = useState(false);
 
   function onNombreChange(s: string) {
@@ -275,7 +309,7 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
     }
   }
 
-  const precio = useMemo(() => {
+  const precioCompraCalc = useMemo(() => {
     return precioArma({
       exeRate, dmgLvl20, dmg2pct, speed7,
       nivel: Number(nivel) || 0,
@@ -285,7 +319,20 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
     });
   }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill]);
 
+  const precioCompraFinal = useMemo(() => {
+    if (precioCompraOverride && Number(precioCompraOverride) > 0) {
+      return Number(precioCompraOverride);
+    }
+    return precioCompraCalc;
+  }, [precioCompraOverride, precioCompraCalc]);
+
+  const precioVentaCalc = useMemo(() => {
+    if (precioCompraFinal === null) return null;
+    return calcularPrecioVenta(precioCompraFinal, tipo || null);
+  }, [precioCompraFinal, tipo]);
+
   async function guardar() {
+    if (precioVentaCalc === null) return;
     setSaving(true);
     const { error } = await supabase.from("items").insert({
       categoria: "arma" as Categoria,
@@ -297,8 +344,8 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
       socket: tipo === "400" ? socket : 0,
       exe_rate: exeRate, dmg_lvl_20: dmgLvl20, dmg_2pct: dmg2pct, speed_7: speed7,
       skill, luck,
-      precio_venta: precio!,
-      precio_compra: precioCompra ? Number(precioCompra) : null,
+      precio_compra: precioCompraFinal,
+      precio_venta: precioVentaCalc,
       dueno: dueno.trim() || null,
       estado: "activo",
     });
@@ -394,14 +441,15 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
       </div>
 
       <PriceFooter
-        precio={precio}
+        precioCompraCalc={precioCompraFinal}
+        precioVentaCalc={precioVentaCalc}
         dueno={dueno}
         setDueno={setDueno}
-        precioCompra={precioCompra}
-        setPrecioCompra={setPrecioCompra}
+        precioCompraOverride={precioCompraOverride}
+        setPrecioCompraOverride={setPrecioCompraOverride}
         onSave={guardar}
         saving={saving}
-        canSave={(!!nombre || !!parte) && !!tipo && precio !== null}
+        canSave={(!!nombre || !!parte) && !!tipo && precioVentaCalc !== null}
       />
     </div>
   );
@@ -419,17 +467,31 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
   const [luck, setLuck] = useState(true);
   const [raza, setRaza] = useState<"" | Raza>("");
   const [dueno, setDueno] = useState("");
-  const [precioCompra, setPrecioCompra] = useState("");
+  const [precioCompraOverride, setPrecioCompraOverride] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const precio = useMemo(() => {
+  const precioCompraCalc = useMemo(() => {
     return precioAlas({
       ignore, returnOpc, lifeRecovery, luck,
       nivel: Number(nivel) || 0,
     });
   }, [ignore, returnOpc, lifeRecovery, luck, nivel]);
 
+  const precioCompraFinal = useMemo(() => {
+    if (precioCompraOverride && Number(precioCompraOverride) > 0) {
+      return Number(precioCompraOverride);
+    }
+    return precioCompraCalc;
+  }, [precioCompraOverride, precioCompraCalc]);
+
+  // Alas son siempre tipo s3 → ×3
+  const precioVentaCalc = useMemo(() => {
+    if (precioCompraFinal === null) return null;
+    return calcularPrecioVenta(precioCompraFinal, "s3");
+  }, [precioCompraFinal]);
+
   async function guardar() {
+    if (precioVentaCalc === null) return;
     setSaving(true);
     const { error } = await supabase.from("items").insert({
       categoria: "ala" as Categoria,
@@ -437,14 +499,14 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
       parte: "wings",
       raza: raza || null,
       nivel: Number(nivel),
-      tipo: "s3" as TipoItem,  // las alas son tipo s3 (las que se compran)
+      tipo: "s3" as TipoItem,
       socket: 0,
       opc_ignore: ignore,
       opc_return: returnOpc,
       opc_life_recov: lifeRecovery,
       luck,
-      precio_venta: precio!,
-      precio_compra: precioCompra ? Number(precioCompra) : null,
+      precio_compra: precioCompraFinal,
+      precio_venta: precioVentaCalc,
       dueno: dueno.trim() || null,
       estado: "activo",
     });
@@ -501,14 +563,15 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
       </div>
 
       <PriceFooter
-        precio={precio}
+        precioCompraCalc={precioCompraFinal}
+        precioVentaCalc={precioVentaCalc}
         dueno={dueno}
         setDueno={setDueno}
-        precioCompra={precioCompra}
-        setPrecioCompra={setPrecioCompra}
+        precioCompraOverride={precioCompraOverride}
+        setPrecioCompraOverride={setPrecioCompraOverride}
         onSave={guardar}
         saving={saving}
-        canSave={!!nombre && precio !== null}
+        canSave={!!nombre && precioVentaCalc !== null}
       />
     </div>
   );
