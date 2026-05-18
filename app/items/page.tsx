@@ -5,14 +5,20 @@ import Navbar from "@/components/Navbar";
 import SearchBar from "@/components/SearchBar";
 import ItemCard from "@/components/ItemCard";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import JewelCard from "@/components/JewelCard";
+import SeedCard from "@/components/SeedCard";
 import { supabase } from "@/lib/supabase";
 import { getRaza } from "@/lib/razas";
+import { JEWEL_PRECIOS, SEED_LABELS } from "@/lib/precios";
 import type { Item } from "@/lib/types";
-import type { ItemPublico } from "@/lib/database.types";
+import type { ItemPublico, JewelPublico, SeedPublico, TipoJewel, TipoSeed } from "@/lib/database.types";
 
-// Convierte un ItemPublico (de Supabase) a Item (formato usado por ItemCard).
+type Tab = "items" | "consumibles";
+
+// =====================================================
+// Adaptador de ItemPublico → Item (formato que ItemCard espera)
+// =====================================================
 function adaptar(it: ItemPublico): Item {
-  // Construye string de opciones según la categoría
   let opciones = "";
   if (it.categoria === "armadura") {
     opciones = "hp, dd, ref";
@@ -60,11 +66,71 @@ function searchItems(items: Item[], query: string): Item[] {
   });
 }
 
+// =====================================================
+// Agrupación de jewels/seeds por tipo
+// =====================================================
+interface JewelGroup {
+  tipo: TipoJewel;
+  totalBundles: number;
+  precioPorBundle: number;
+}
+interface SeedGroup {
+  tipo: TipoSeed;
+  ensamblada_penta: boolean;
+  totalCantidad: number;
+  precioUnidad: number;
+}
+
+function agruparJewels(stocks: JewelPublico[]): JewelGroup[] {
+  const map = new Map<TipoJewel, JewelGroup>();
+  for (const s of stocks) {
+    const ex = map.get(s.tipo);
+    if (ex) {
+      ex.totalBundles += s.bundles;
+    } else {
+      map.set(s.tipo, {
+        tipo: s.tipo,
+        totalBundles: s.bundles,
+        precioPorBundle: Math.round(JEWEL_PRECIOS[s.tipo] * 2),  // ×2 venta
+      });
+    }
+  }
+  return Array.from(map.values()).filter((g) => g.totalBundles > 0);
+}
+
+function agruparSeeds(stocks: SeedPublico[]): SeedGroup[] {
+  // Agrupo por tipo + ensamblada_penta (son productos distintos comercialmente)
+  const map = new Map<string, SeedGroup>();
+  for (const s of stocks) {
+    const key = `${s.tipo}::${s.ensamblada_penta}`;
+    const ex = map.get(key);
+    if (ex) {
+      ex.totalCantidad += s.cantidad;
+    } else {
+      const precioBase = s.tipo === "max_life" ? 35000 : 40000;
+      const precioCompra = s.ensamblada_penta ? precioBase + 5000 : precioBase;
+      map.set(key, {
+        tipo: s.tipo,
+        ensamblada_penta: s.ensamblada_penta,
+        totalCantidad: s.cantidad,
+        precioUnidad: Math.round(precioCompra * 3.5),  // ×3.5 venta
+      });
+    }
+  }
+  return Array.from(map.values()).filter((g) => g.totalCantidad > 0);
+}
+
+// =====================================================
+// PÁGINA PRINCIPAL
+// =====================================================
 export default function ItemsPage() {
+  const [tab, setTab] = useState<Tab>("items");
   const [query, setQuery] = useState("");
   const [filterTipo, setFilterTipo] = useState<string>("");
   const [filterCategoria, setFilterCategoria] = useState<string>("");
   const [items, setItems] = useState<Item[]>([]);
+  const [jewels, setJewels] = useState<JewelGroup[]>([]);
+  const [seeds, setSeeds] = useState<SeedGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,17 +138,20 @@ export default function ItemsPage() {
     async function cargar() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from("items_publicos")
-          .select("*")
-          .order("created_at", { ascending: false });
+        const [resItems, resJewels, resSeeds] = await Promise.all([
+          supabase.from("items_publicos").select("*").order("created_at", { ascending: false }),
+          supabase.from("jewels_publicos").select("*"),
+          supabase.from("seeds_publicos").select("*"),
+        ]);
 
-        if (error) throw error;
-        const adaptados = (data || []).map(adaptar);
-        setItems(adaptados);
+        if (resItems.error) throw resItems.error;
+        setItems((resItems.data || []).map(adaptar));
+
+        if (resJewels.data) setJewels(agruparJewels(resJewels.data as JewelPublico[]));
+        if (resSeeds.data) setSeeds(agruparSeeds(resSeeds.data as SeedPublico[]));
       } catch (err) {
-        console.error("Error cargando items:", err);
-        setError("No pudimos cargar el catálogo. Probá refrescando la página.");
+        console.error("Error cargando catálogo:", err);
+        setError("No pudimos cargar el catálogo. Probá refrescando.");
       } finally {
         setLoading(false);
       }
@@ -98,69 +167,89 @@ export default function ItemsPage() {
     return result;
   }, [items, query, filterTipo, filterCategoria]);
 
+  const totalConsumibles = jewels.length + seeds.length;
+
   return (
     <>
       <Navbar />
       <main className="px-4 sm:px-6 py-8 sm:py-10">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="font-display font-bold text-3xl sm:text-4xl text-text-primary mb-2">
               Catálogo
             </h1>
             <p className="font-body text-sm sm:text-base text-text-secondary">
               {loading
-                ? "Cargando items..."
-                : `${items.length} items disponibles. Tocá Consultar para reservar por WhatsApp.`}
+                ? "Cargando..."
+                : "Tocá Consultar para reservar por WhatsApp."}
             </p>
           </div>
 
-          {/* Buscador */}
-          <div className="mb-4">
-            <SearchBar value={query} onChange={setQuery} placeholder="Buscar: queen, Wizard, 400, helm..." />
+          {/* TABS */}
+          <div className="flex gap-2 mb-6 border-b border-border-base">
+            <button
+              onClick={() => setTab("items")}
+              className={`px-4 py-2.5 font-body text-xs sm:text-sm uppercase tracking-widest border-b-2 transition-colors ${
+                tab === "items"
+                  ? "border-neon-cyan text-neon-cyan"
+                  : "border-transparent text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              📦 Items <span className="opacity-60">({items.length})</span>
+            </button>
+            <button
+              onClick={() => setTab("consumibles")}
+              className={`px-4 py-2.5 font-body text-xs sm:text-sm uppercase tracking-widest border-b-2 transition-colors ${
+                tab === "consumibles"
+                  ? "border-neon-cyan text-neon-cyan"
+                  : "border-transparent text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              💎🌱 Jewels & Seeds <span className="opacity-60">({totalConsumibles})</span>
+            </button>
           </div>
 
-          {/* Filtros */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            <FilterChip label="Todas" active={!filterCategoria} onClick={() => setFilterCategoria("")} />
-            <FilterChip label="🛡 Armaduras" active={filterCategoria === "armadura"} onClick={() => setFilterCategoria("armadura")} />
-            <FilterChip label="⚔ Armas" active={filterCategoria === "arma"} onClick={() => setFilterCategoria("arma")} />
-            <FilterChip label="🪽 Alas" active={filterCategoria === "ala"} onClick={() => setFilterCategoria("ala")} />
-
-            <div className="w-full sm:w-px sm:h-7 sm:bg-border-base sm:mx-2" />
-
-            <FilterChip label="Todos" active={!filterTipo} onClick={() => setFilterTipo("")} small />
-            <FilterChip label="s3" active={filterTipo === "s3"} onClick={() => setFilterTipo("s3")} small />
-            <FilterChip label="380" active={filterTipo === "380"} onClick={() => setFilterTipo("380")} small />
-            <FilterChip label="400" active={filterTipo === "400"} onClick={() => setFilterTipo("400")} small />
-          </div>
-
-          {/* Estados */}
+          {/* ERROR */}
           {error && (
             <div className="text-center py-12 font-body text-danger-red border border-danger-red/30 rounded-lg bg-danger-red/5">
               <p>{error}</p>
             </div>
           )}
 
+          {/* LOADING */}
           {loading && !error && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} className="gamer-card rounded-lg p-4 h-56 animate-pulse">
                   <div className="h-6 w-2/3 bg-border-base rounded mb-3" />
                   <div className="h-4 w-1/2 bg-border-base rounded mb-6" />
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className="h-8 bg-border-base rounded" />
-                    <div className="h-8 bg-border-base rounded" />
-                    <div className="h-8 bg-border-base rounded" />
-                  </div>
-                  <div className="h-10 w-1/3 bg-border-base rounded" />
                 </div>
               ))}
             </div>
           )}
 
-          {!loading && !error && (
+          {/* TAB: ITEMS */}
+          {!loading && !error && tab === "items" && (
             <>
+              <div className="mb-4">
+                <SearchBar value={query} onChange={setQuery} placeholder="Buscar: queen, Wizard, 400, helm..." />
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-6">
+                <FilterChip label="Todas" active={!filterCategoria} onClick={() => setFilterCategoria("")} />
+                <FilterChip label="🛡 Armaduras" active={filterCategoria === "armadura"} onClick={() => setFilterCategoria("armadura")} />
+                <FilterChip label="⚔ Armas" active={filterCategoria === "arma"} onClick={() => setFilterCategoria("arma")} />
+                <FilterChip label="🪽 Alas" active={filterCategoria === "ala"} onClick={() => setFilterCategoria("ala")} />
+
+                <div className="w-full sm:w-px sm:h-7 sm:bg-border-base sm:mx-2" />
+
+                <FilterChip label="Todos" active={!filterTipo} onClick={() => setFilterTipo("")} small />
+                <FilterChip label="s3" active={filterTipo === "s3"} onClick={() => setFilterTipo("s3")} small />
+                <FilterChip label="380" active={filterTipo === "380"} onClick={() => setFilterTipo("380")} small />
+                <FilterChip label="400" active={filterTipo === "400"} onClick={() => setFilterTipo("400")} small />
+              </div>
+
               <p className="font-body text-xs text-text-muted mb-4">
                 {filtrados.length} {filtrados.length === 1 ? "resultado" : "resultados"}
               </p>
@@ -182,6 +271,47 @@ export default function ItemsPage() {
                 </div>
               )}
             </>
+          )}
+
+          {/* TAB: CONSUMIBLES */}
+          {!loading && !error && tab === "consumibles" && (
+            <div className="space-y-8 animate-fade-in">
+              {/* JEWELS */}
+              <section>
+                <h2 className="font-display font-bold text-xl text-text-primary mb-3">
+                  💎 Jewels
+                </h2>
+                {jewels.length === 0 ? (
+                  <p className="font-body text-text-muted text-center py-8 border border-border-base rounded-lg">
+                    Sin stock de jewels disponible.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {jewels.map((j) => (
+                      <JewelCard key={j.tipo} group={j} />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* SEEDS */}
+              <section>
+                <h2 className="font-display font-bold text-xl text-text-primary mb-3">
+                  🌱 Seeds
+                </h2>
+                {seeds.length === 0 ? (
+                  <p className="font-body text-text-muted text-center py-8 border border-border-base rounded-lg">
+                    Sin stock de seeds disponible.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {seeds.map((s, idx) => (
+                      <SeedCard key={idx} group={s} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
           )}
         </div>
       </main>
