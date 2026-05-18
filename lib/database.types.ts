@@ -95,12 +95,67 @@ export interface Database {
     Tables: {
       items: {
         Row: ItemPublico & { dueno: string | null; precio_compra: number | null; updated_at: string };
-        Insert: Partial<ItemPublico> & { categoria: Categoria; tipo: TipoItem; nivel: number; precio_venta: number };
-        Update: Partial<ItemPublico>;
+        Insert: {
+          id?: string;
+          categoria: Categoria;
+          nombre: string;
+          parte?: string | null;
+          raza?: Raza | null;
+          nivel?: number;
+          tipo: TipoItem;
+          socket?: number | null;
+          hp_dd_ref?: boolean;
+          exe_rate?: boolean;
+          dmg_lvl_20?: boolean;
+          dmg_2pct?: boolean;
+          speed_7?: boolean;
+          skill?: boolean;
+          opc_ignore?: boolean;
+          opc_return?: boolean;
+          opc_life_recov?: boolean;
+          luck?: boolean;
+          precio_compra?: number | null;
+          precio_venta: number;
+          dueno?: string | null;
+          estado?: EstadoItem;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<ItemPublico> & { dueno?: string | null; precio_compra?: number | null };
+      };
+      jewels_stock: {
+        Row: JewelPublico & { dueno: string | null; updated_at: string };
+        Insert: {
+          id?: string;
+          tipo: TipoJewel;
+          bundles?: number;
+          dueno?: string | null;
+          estado?: EstadoItem;
+        };
+        Update: Partial<JewelPublico> & { dueno?: string | null };
+      };
+      seeds_stock: {
+        Row: SeedPublico & { dueno: string | null; updated_at: string };
+        Insert: {
+          id?: string;
+          tipo: TipoSeed;
+          ensamblada_penta?: boolean;
+          cantidad?: number;
+          dueno?: string | null;
+          estado?: EstadoItem;
+        };
+        Update: Partial<SeedPublico> & { dueno?: string | null };
+      };
+      admins: {
+        Row: { email: string; nombre: string | null; created_at: string };
+        Insert: { email: string; nombre?: string | null };
+        Update: { email?: string; nombre?: string | null };
       };
       consignaciones: {
         Row: Consignacion;
-        Insert: Omit<Consignacion, "id" | "created_at" | "updated_at" | "estado" | "aprobada_at" | "aprobada_por">;
+        Insert: Omit<Consignacion, "id" | "created_at" | "updated_at" | "estado" | "aprobada_at" | "aprobada_por"> & {
+          estado?: EstadoConsignacion;
+        };
         Update: Partial<Consignacion>;
       };
     };
