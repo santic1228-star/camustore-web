@@ -14,47 +14,120 @@ interface Props {
  * - Si no hay sesión, muestra el form de login (email + password).
  * - Si hay sesión pero el email no está en `admins`, muestra mensaje de "no autorizado".
  * - Si todo OK, renderiza children pasándole el user.
+ * - Si la carga tarda más de 5s, ofrece botón "Reintentar / Cerrar sesión" para no quedar colgado.
  */
 export default function AdminGate({ children }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stuck, setStuck] = useState(false);  // si se cuelga más de 5s
 
   useEffect(() => {
-    // Estado inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        checkIsAdmin(session.user).then((ok) => {
-          setIsAdmin(ok);
-          setLoading(false);
-        });
-      } else {
-        setIsAdmin(false);
-        setLoading(false);
-      }
-    });
+    let cancelled = false;
+    let stuckTimer: NodeJS.Timeout;
 
-    // Escuchar cambios de auth
+    async function init() {
+      try {
+        // Si tarda más de 5s, mostramos opciones de recuperación
+        stuckTimer = setTimeout(() => {
+          if (!cancelled) setStuck(true);
+        }, 5000);
+
+        // Timeout global de 10s a las llamadas, para no quedar colgado infinitamente
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 10000)),
+        ]).catch(() => null);
+
+        if (cancelled) return;
+
+        const session = (sessionResult as any)?.data?.session;
+        if (session?.user) {
+          const ok = await Promise.race([
+            checkIsAdmin(session.user),
+            new Promise<boolean>((res) => setTimeout(() => res(false), 5000)),
+          ]).catch(() => false);
+          if (cancelled) return;
+          setUser(session.user);
+          setIsAdmin(ok);
+        } else {
+          setUser(null);
+          setIsAdmin(false);
+        }
+      } catch (err) {
+        console.error("Error en AdminGate init:", err);
+        if (!cancelled) {
+          setUser(null);
+          setIsAdmin(false);
+        }
+      } finally {
+        if (!cancelled) {
+          clearTimeout(stuckTimer);
+          setLoading(false);
+          setStuck(false);
+        }
+      }
+    }
+
+    init();
+
+    // Escuchar cambios de auth (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (cancelled) return;
         setUser(session?.user ?? null);
         if (session?.user) {
-          const ok = await checkIsAdmin(session.user);
-          setIsAdmin(ok);
+          const ok = await checkIsAdmin(session.user).catch(() => false);
+          if (!cancelled) setIsAdmin(ok);
         } else {
           setIsAdmin(false);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      clearTimeout(stuckTimer);
+      subscription.unsubscribe();
+    };
   }, []);
+
+  async function limpiarSesion() {
+    // Limpia todo: cierra sesión Supabase + localStorage del proyecto
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignorar errores
+    }
+    // Borro todas las claves de localStorage que use Supabase
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith("sb-") || key.includes("supabase"))) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {}
+    location.reload();
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 gap-4">
         <p className="font-body text-text-secondary animate-pulse">Cargando…</p>
+        {stuck && (
+          <div className="gamer-card rounded-lg p-5 max-w-sm text-center mt-4">
+            <p className="font-body text-sm text-text-secondary mb-3">
+              ¿Tarda más de lo esperado? Tu sesión puede haber expirado.
+            </p>
+            <button
+              onClick={limpiarSesion}
+              className="btn-primary w-full px-4 py-2.5 rounded font-body text-xs uppercase tracking-widest"
+            >
+              Cerrar sesión y reintentar
+            </button>
+          </div>
+        )}
       </div>
     );
   }
