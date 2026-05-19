@@ -8,7 +8,7 @@ export type TipoItem = "s3" | "380" | "400";
 export type Raza = "Knight" | "Wizard" | "Elf" | "Gladiator" | "Lord" | "Summoner";
 export type EstadoItem = "activo" | "vendido" | "retirado";
 export type EstadoConsignacion = "pendiente" | "aprobado" | "rechazado" | "vendido";
-export type TipoJewel = "chaos" | "creation" | "soul" | "bless";
+export type TipoJewel = "chaos" | "creation" | "soul" | "bless" | "harmony" | "life";
 export type TipoSeed = "max_life" | "damage_reduction";
 
 export interface ItemPublico {

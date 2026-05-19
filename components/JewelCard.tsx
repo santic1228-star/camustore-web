@@ -17,6 +17,8 @@ const ICONOS_JEWEL: Record<TipoJewel, string> = {
   creation: "✨",
   soul: "👻",
   bless: "🌟",
+  harmony: "🎵",
+  life: "💚",
 };
 
 const COLORS_JEWEL: Record<TipoJewel, string> = {
@@ -24,6 +26,8 @@ const COLORS_JEWEL: Record<TipoJewel, string> = {
   creation: "border-pink-500/40",
   soul: "border-blue-500/40",
   bless: "border-luck-gold/40",
+  harmony: "border-cyan-500/40",
+  life: "border-green-500/40",
 };
 
 export default function JewelCard({ group }: Props) {

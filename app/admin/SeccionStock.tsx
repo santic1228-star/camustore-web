@@ -365,6 +365,8 @@ function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
               { value: "creation", label: "Creation" },
               { value: "soul", label: "Soul" },
               { value: "bless", label: "Bless" },
+              { value: "harmony", label: "Harmony" },
+              { value: "life", label: "Life" },
             ]}
             placeholder="—"
           />

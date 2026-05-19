@@ -7,15 +7,43 @@ import { precioArmadura, precioArma, precioAlas } from "@/lib/precios";
 import { getRaza } from "@/lib/razas";
 import type { Categoria, TipoItem, Raza } from "@/lib/database.types";
 
+// Tipo del item para editar (campos que vienen de la DB)
+export interface EditableItem {
+  id: string;
+  categoria: Categoria;
+  nombre: string;
+  parte: string | null;
+  raza: string | null;
+  nivel: number;
+  tipo: TipoItem;
+  socket: number | null;
+  hp_dd_ref?: boolean | null;
+  luck?: boolean | null;
+  exe_rate?: boolean | null;
+  dmg_lvl_20?: boolean | null;
+  dmg_2pct?: boolean | null;
+  speed_7?: boolean | null;
+  skill?: boolean | null;
+  opc_ignore?: boolean | null;
+  opc_return?: boolean | null;
+  opc_life_recov?: boolean | null;
+  precio_compra: number | null;
+  precio_venta: number;
+  dueno: string | null;
+}
+
 interface Props {
   onClose: () => void;
   onSaved: () => void;
+  editItem?: EditableItem;  // si está presente, modo edición
 }
 
 type Tab = "armadura" | "arma" | "ala";
 
-export default function ItemFormModal({ onClose, onSaved }: Props) {
-  const [tab, setTab] = useState<Tab>("armadura");
+export default function ItemFormModal({ onClose, onSaved, editItem }: Props) {
+  const initialTab: Tab = editItem ? (editItem.categoria as Tab) : "armadura";
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const isEdit = !!editItem;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
@@ -23,7 +51,7 @@ export default function ItemFormModal({ onClose, onSaved }: Props) {
         {/* Header */}
         <div className="sticky top-0 bg-bg-base border-b border-border-base px-6 py-4 flex items-center justify-between z-10">
           <h2 className="font-display font-bold text-xl text-text-primary">
-            Nuevo item
+            {isEdit ? `Editar: ${editItem.nombre}` : "Nuevo item"}
           </h2>
           <button
             onClick={onClose}
@@ -33,28 +61,30 @@ export default function ItemFormModal({ onClose, onSaved }: Props) {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="px-6 pt-4 flex gap-2 border-b border-border-base">
-          {(["armadura", "arma", "ala"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 font-body text-xs uppercase tracking-wider border-b-2 transition-colors ${
-                tab === t
-                  ? "border-neon-cyan text-neon-cyan"
-                  : "border-transparent text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {t === "armadura" ? "🛡 Armadura" : t === "arma" ? "⚔ Arma" : "🪽 Ala"}
-            </button>
-          ))}
-        </div>
+        {/* Tabs (solo en modo nuevo) */}
+        {!isEdit && (
+          <div className="px-6 pt-4 flex gap-2 border-b border-border-base">
+            {(["armadura", "arma", "ala"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-4 py-2 font-body text-xs uppercase tracking-wider border-b-2 transition-colors ${
+                  tab === t
+                    ? "border-neon-cyan text-neon-cyan"
+                    : "border-transparent text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {t === "armadura" ? "🛡 Armadura" : t === "arma" ? "⚔ Arma" : "🪽 Ala"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Form */}
         <div className="p-6">
-          {tab === "armadura" && <FormArmadura onClose={onClose} onSaved={onSaved} />}
-          {tab === "arma" && <FormArma onClose={onClose} onSaved={onSaved} />}
-          {tab === "ala" && <FormAla onClose={onClose} onSaved={onSaved} />}
+          {tab === "armadura" && <FormArmadura onClose={onClose} onSaved={onSaved} editItem={editItem} />}
+          {tab === "arma" && <FormArma onClose={onClose} onSaved={onSaved} editItem={editItem} />}
+          {tab === "ala" && <FormAla onClose={onClose} onSaved={onSaved} editItem={editItem} />}
         </div>
       </div>
     </div>
@@ -98,7 +128,7 @@ function calcularPrecioVenta(
 // COMÚN: footer con precio y botón guardar
 // =====================================================
 function PriceFooter({
-  precioCompraCalc, precioVentaCalc, dueno, setDueno, precioCompraOverride, setPrecioCompraOverride, onSave, saving, canSave,
+  precioCompraCalc, precioVentaCalc, dueno, setDueno, precioCompraOverride, setPrecioCompraOverride, onSave, saving, canSave, saveLabel,
 }: {
   precioCompraCalc: number | null;
   precioVentaCalc: number | null;
@@ -109,6 +139,7 @@ function PriceFooter({
   onSave: () => void;
   saving: boolean;
   canSave: boolean;
+  saveLabel?: string;
 }) {
   return (
     <div className="mt-6 pt-6 border-t border-border-base space-y-4">
@@ -147,7 +178,7 @@ function PriceFooter({
         disabled={!canSave || saving || precioVentaCalc === null}
         className="btn-primary w-full px-6 py-3 rounded font-body text-xs uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {saving ? "Guardando..." : "Guardar item"}
+        {saving ? "Guardando..." : (saveLabel || "Guardar item")}
       </button>
     </div>
   );
@@ -156,17 +187,20 @@ function PriceFooter({
 // =====================================================
 // FORM: ARMADURA
 // =====================================================
-function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () => void }) {
-  const [nombre, setNombre] = useState("");
-  const [parte, setParte] = useState("");
-  const [raza, setRaza] = useState<"" | Raza>("");
-  const [nivel, setNivel] = useState("10");
-  const [hpDdRef, setHpDdRef] = useState(true);
-  const [tipo, setTipo] = useState<"" | TipoItem>("");
-  const [socket, setSocket] = useState(0);
-  const [luck, setLuck] = useState(true);
-  const [dueno, setDueno] = useState("");
-  const [precioCompraOverride, setPrecioCompraOverride] = useState("");
+function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const isEdit = !!editItem;
+  const [nombre, setNombre] = useState(editItem?.nombre || "");
+  const [parte, setParte] = useState(editItem?.parte || "");
+  const [raza, setRaza] = useState<"" | Raza>((editItem?.raza as Raza) || "");
+  const [nivel, setNivel] = useState(String(editItem?.nivel ?? 10));
+  const [hpDdRef, setHpDdRef] = useState(editItem?.hp_dd_ref ?? true);
+  const [tipo, setTipo] = useState<"" | TipoItem>(editItem?.tipo || "");
+  const [socket, setSocket] = useState(editItem?.socket || 0);
+  const [luck, setLuck] = useState(editItem?.luck ?? true);
+  const [dueno, setDueno] = useState(editItem?.dueno || "");
+  const [precioCompraOverride, setPrecioCompraOverride] = useState(
+    editItem?.precio_compra ? String(editItem.precio_compra) : ""
+  );
   const [saving, setSaving] = useState(false);
 
   function onNombreChange(s: string) {
@@ -184,8 +218,6 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
     });
   }, [hpDdRef, nivel, tipo, socket, luck]);
 
-  // precio_compra real = override del admin (si lo puso) o el del cotizador.
-  // Es SOLO informativo, no afecta el precio de venta.
   const precioCompraFinal = useMemo(() => {
     if (precioCompraOverride && Number(precioCompraOverride) > 0) {
       return Number(precioCompraOverride);
@@ -201,7 +233,7 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
   async function guardar() {
     if (precioVentaCalc === null) return;
     setSaving(true);
-    const { error } = await supabase.from("items").insert({
+    const payload = {
       categoria: "armadura" as Categoria,
       nombre: nombre.trim(),
       parte: parte.trim() || null,
@@ -211,11 +243,13 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
       socket: tipo === "400" ? socket : 0,
       hp_dd_ref: hpDdRef,
       luck,
-      precio_compra: precioCompraFinal,    // lo que realmente pagaste (informativo)
-      precio_venta: precioVentaCalc,        // siempre uniforme según cotizador × multiplicador
+      precio_compra: precioCompraFinal,
+      precio_venta: precioVentaCalc,
       dueno: dueno.trim() || null,
-      estado: "activo",
-    });
+    };
+    const { error } = isEdit
+      ? await supabase.from("items").update(payload).eq("id", editItem!.id)
+      : await supabase.from("items").insert({ ...payload, estado: "activo" });
     setSaving(false);
     if (error) {
       alert("Error al guardar: " + error.message);
@@ -300,6 +334,7 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
         onSave={guardar}
         saving={saving}
         canSave={!!nombre && !!tipo && precioVentaCalc !== null}
+        saveLabel={isEdit ? "Guardar cambios" : "Guardar item"}
       />
     </div>
   );
@@ -308,21 +343,24 @@ function FormArmadura({ onSaved, onClose }: { onClose: () => void; onSaved: () =
 // =====================================================
 // FORM: ARMA
 // =====================================================
-function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => void }) {
-  const [nombre, setNombre] = useState("");
-  const [parte, setParte] = useState("");
-  const [raza, setRaza] = useState<"" | Raza>("");
-  const [nivel, setNivel] = useState("9");
-  const [exeRate, setExeRate] = useState(true);
-  const [dmgLvl20, setDmgLvl20] = useState(false);
-  const [dmg2pct, setDmg2pct] = useState(true);
-  const [speed7, setSpeed7] = useState(true);
-  const [tipo, setTipo] = useState<"" | TipoItem>("");
-  const [socket, setSocket] = useState(0);
-  const [luck, setLuck] = useState(true);
-  const [skill, setSkill] = useState(true);
-  const [dueno, setDueno] = useState("");
-  const [precioCompraOverride, setPrecioCompraOverride] = useState("");
+function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const isEdit = !!editItem;
+  const [nombre, setNombre] = useState(editItem?.nombre || "");
+  const [parte, setParte] = useState(editItem?.parte || "");
+  const [raza, setRaza] = useState<"" | Raza>((editItem?.raza as Raza) || "");
+  const [nivel, setNivel] = useState(String(editItem?.nivel ?? 9));
+  const [exeRate, setExeRate] = useState(editItem?.exe_rate ?? true);
+  const [dmgLvl20, setDmgLvl20] = useState(editItem?.dmg_lvl_20 ?? false);
+  const [dmg2pct, setDmg2pct] = useState(editItem?.dmg_2pct ?? true);
+  const [speed7, setSpeed7] = useState(editItem?.speed_7 ?? true);
+  const [tipo, setTipo] = useState<"" | TipoItem>(editItem?.tipo || "");
+  const [socket, setSocket] = useState(editItem?.socket || 0);
+  const [luck, setLuck] = useState(editItem?.luck ?? true);
+  const [skill, setSkill] = useState(editItem?.skill ?? true);
+  const [dueno, setDueno] = useState(editItem?.dueno || "");
+  const [precioCompraOverride, setPrecioCompraOverride] = useState(
+    editItem?.precio_compra ? String(editItem.precio_compra) : ""
+  );
   const [saving, setSaving] = useState(false);
 
   function onNombreChange(s: string) {
@@ -359,7 +397,7 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
   async function guardar() {
     if (precioVentaCalc === null) return;
     setSaving(true);
-    const { error } = await supabase.from("items").insert({
+    const payload = {
       categoria: "arma" as Categoria,
       nombre: nombre.trim() || parte.trim(),
       parte: parte.trim() || null,
@@ -372,8 +410,10 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
       precio_compra: precioCompraFinal,
       precio_venta: precioVentaCalc,
       dueno: dueno.trim() || null,
-      estado: "activo",
-    });
+    };
+    const { error } = isEdit
+      ? await supabase.from("items").update(payload).eq("id", editItem!.id)
+      : await supabase.from("items").insert({ ...payload, estado: "activo" });
     setSaving(false);
     if (error) {
       alert("Error al guardar: " + error.message);
@@ -475,6 +515,7 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
         onSave={guardar}
         saving={saving}
         canSave={(!!nombre || !!parte) && !!tipo && precioVentaCalc !== null}
+        saveLabel={isEdit ? "Guardar cambios" : "Guardar item"}
       />
     </div>
   );
@@ -483,16 +524,19 @@ function FormArma({ onSaved, onClose }: { onClose: () => void; onSaved: () => vo
 // =====================================================
 // FORM: ALA
 // =====================================================
-function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => void }) {
-  const [nombre, setNombre] = useState("");
-  const [nivel, setNivel] = useState("0");
-  const [ignore, setIgnore] = useState(false);
-  const [returnOpc, setReturnOpc] = useState(false);
-  const [lifeRecovery, setLifeRecovery] = useState(false);
-  const [luck, setLuck] = useState(true);
-  const [raza, setRaza] = useState<"" | Raza>("");
-  const [dueno, setDueno] = useState("");
-  const [precioCompraOverride, setPrecioCompraOverride] = useState("");
+function FormAla({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const isEdit = !!editItem;
+  const [nombre, setNombre] = useState(editItem?.nombre || "");
+  const [nivel, setNivel] = useState(String(editItem?.nivel ?? 0));
+  const [ignore, setIgnore] = useState(editItem?.opc_ignore ?? false);
+  const [returnOpc, setReturnOpc] = useState(editItem?.opc_return ?? false);
+  const [lifeRecovery, setLifeRecovery] = useState(editItem?.opc_life_recov ?? false);
+  const [luck, setLuck] = useState(editItem?.luck ?? true);
+  const [raza, setRaza] = useState<"" | Raza>((editItem?.raza as Raza) || "");
+  const [dueno, setDueno] = useState(editItem?.dueno || "");
+  const [precioCompraOverride, setPrecioCompraOverride] = useState(
+    editItem?.precio_compra ? String(editItem.precio_compra) : ""
+  );
   const [saving, setSaving] = useState(false);
 
   const precioCompraCalc = useMemo(() => {
@@ -519,7 +563,7 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
   async function guardar() {
     if (precioVentaCalc === null) return;
     setSaving(true);
-    const { error } = await supabase.from("items").insert({
+    const payload = {
       categoria: "ala" as Categoria,
       nombre: nombre.trim(),
       parte: "wings",
@@ -534,8 +578,10 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
       precio_compra: precioCompraFinal,
       precio_venta: precioVentaCalc,
       dueno: dueno.trim() || null,
-      estado: "activo",
-    });
+    };
+    const { error } = isEdit
+      ? await supabase.from("items").update(payload).eq("id", editItem!.id)
+      : await supabase.from("items").insert({ ...payload, estado: "activo" });
     setSaving(false);
     if (error) {
       alert("Error al guardar: " + error.message);
@@ -598,6 +644,7 @@ function FormAla({ onSaved, onClose }: { onClose: () => void; onSaved: () => voi
         onSave={guardar}
         saving={saving}
         canSave={!!nombre && precioVentaCalc !== null}
+        saveLabel={isEdit ? "Guardar cambios" : "Guardar item"}
       />
     </div>
   );

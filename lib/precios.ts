@@ -175,13 +175,15 @@ export function precioAlas(input: AlasInput): number | null {
 // Precio por bundle de 30 unidades.
 // El usuario carga cuántos BUNDLES tiene (0 a 99).
 
-export type JewelTipo = "chaos" | "creation" | "soul" | "bless";
+export type JewelTipo = "chaos" | "creation" | "soul" | "bless" | "harmony" | "life";
 
 export const JEWEL_PRECIOS: Record<JewelTipo, number> = {
   chaos: 200,
   creation: 250,
   soul: 350,
-  bless: 400,
+  bless: 1000,
+  harmony: 350,
+  life: 250,
 };
 
 export const JEWEL_LABELS: Record<JewelTipo, string> = {
@@ -189,6 +191,8 @@ export const JEWEL_LABELS: Record<JewelTipo, string> = {
   creation: "Jewel of Creation",
   soul: "Jewel of Soul",
   bless: "Jewel of Bless",
+  harmony: "Jewel of Harmony",
+  life: "Jewel of Life",
 };
 
 /**

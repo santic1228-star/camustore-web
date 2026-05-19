@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Categoria, TipoItem, Raza, EstadoItem } from "@/lib/database.types";
-import ItemFormModal from "./ItemFormModal";
+import ItemFormModal, { EditableItem } from "./ItemFormModal";
 
 interface ItemAdmin {
   id: string;
@@ -35,6 +35,7 @@ export default function SeccionCatalogo() {
   const [items, setItems] = useState<ItemAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<EditableItem | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<EstadoItem | "todos">("activo");
   const [query, setQuery] = useState("");
 
@@ -203,6 +204,7 @@ export default function SeccionCatalogo() {
                       item={it}
                       onCambiarEstado={cambiarEstado}
                       onEliminar={() => eliminarItem(it.id, `${it.nombre} ${it.parte || ""}`)}
+                      onEditar={() => setEditItem(it as EditableItem)}
                     />
                   </td>
                 </tr>
@@ -212,11 +214,13 @@ export default function SeccionCatalogo() {
         </div>
       )}
 
-      {showModal && (
+      {(showModal || editItem) && (
         <ItemFormModal
-          onClose={() => setShowModal(false)}
+          editItem={editItem || undefined}
+          onClose={() => { setShowModal(false); setEditItem(null); }}
           onSaved={() => {
             setShowModal(false);
+            setEditItem(null);
             cargar();
           }}
         />
@@ -239,11 +243,12 @@ function EstadoBadge({ estado }: { estado: EstadoItem }) {
 }
 
 function ItemActions({
-  item, onCambiarEstado, onEliminar,
+  item, onCambiarEstado, onEliminar, onEditar,
 }: {
   item: ItemAdmin;
   onCambiarEstado: (id: string, estado: EstadoItem) => void;
   onEliminar: () => void;
+  onEditar: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -258,6 +263,13 @@ function ItemActions({
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-1 w-44 bg-bg-card border border-border-strong rounded shadow-xl z-20 py-1">
+            <button
+              onClick={() => { setOpen(false); onEditar(); }}
+              className="w-full text-left px-3 py-2 font-body text-xs uppercase tracking-wider text-neon-cyan hover:bg-bg-card-hover"
+            >
+              ✏ Editar
+            </button>
+            <div className="border-t border-border-base my-1" />
             {item.estado !== "vendido" && (
               <button
                 onClick={() => { setOpen(false); onCambiarEstado(item.id, "vendido"); }}
