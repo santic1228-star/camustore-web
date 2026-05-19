@@ -45,16 +45,22 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Verifica si el usuario actual es admin llamando a la función SQL `is_admin()`.
- * Usar RPC en vez de SELECT directo porque la función tiene security definer
- * y bypasea el RLS de la tabla `admins`.
+ * Lista de emails de admin. Hardcodeado por simplicidad.
+ * Para agregar más admins, agregalos acá Y a la tabla `admins` de Supabase
+ * (la tabla sigue siendo la fuente de verdad para RLS en la DB).
+ */
+const ADMIN_EMAILS = [
+  "santic1228@gmail.com",
+];
+
+/**
+ * Verifica si el usuario actual es admin.
+ * Compara el email del usuario contra la lista hardcodeada.
+ *
+ * Esto es robusto porque solo necesita el JWT del cliente (que ya tenemos),
+ * no hace queries adicionales que puedan colgarse.
  */
 export async function checkIsAdmin(user: User | null): Promise<boolean> {
-  if (!user) return false;
-  const { data, error } = await supabase.rpc("is_admin");
-  if (error) {
-    console.warn("Error checkeando admin:", error);
-    return false;
-  }
-  return data === true;
+  if (!user?.email) return false;
+  return ADMIN_EMAILS.includes(user.email.toLowerCase());
 }
