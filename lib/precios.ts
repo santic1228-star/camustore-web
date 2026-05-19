@@ -72,11 +72,23 @@ export function precioArmadura(input: ArmaduraInput): number | null {
 // =====================================================
 // ARMAS
 // =====================================================
-// exe rate 10% + dmg +2% son indispensables.
-// 3ra opción: dmg lvl/20 O speed +7 (cualquiera).
-// +50% sobre precio base (×1.5).
+// =====================================================
+// ARMAS
+// =====================================================
+// exe rate 10% es OBLIGATORIA. Sin esto, no se compra.
+// Opciones útiles extra: dmg +2%, speed +7, dmg lvl/20 (las 3 son combinables).
+// Total opciones útiles = exe rate (siempre 1) + cuántas extras tenga.
+//
+// Multiplicador por cantidad de opciones útiles totales:
+//   1 (solo exe rate)       → no se compra (null)
+//   2 (exe rate + 1 extra)  → × 0.30 (30% del precio)
+//   3 (exe rate + 2 extras) → × 1.00 (100% del precio)
+//
+// UI debe bloquear seleccionar la 4ta opción (máximo 3 totales).
+//
 // Sin luck → ×0,25.
-// Sin skill → ×0,25 (paga solo el 25% del precio que tendría con skill).
+// Sin skill → ×0,25.
+// +50% sobre precio base (×1.5 markup de armas).
 // Sockets (solo tipo 400) → +1.200 WC por socket, sumado AL FINAL.
 
 export interface ArmaInput {
@@ -88,15 +100,23 @@ export interface ArmaInput {
   tipo: "s3" | "380" | "400" | null;
   socket: number | null;
   luck: boolean;
-  skill: boolean;          // tiene skill (cyclone, etc.)
+  skill: boolean;
 }
 
 export function precioArma(input: ArmaInput): number | null {
   const { exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill } = input;
 
   if (!tipo) return null;
-  if (!exeRate || !dmg2pct) return null;
-  if (!dmgLvl20 && !speed7) return null;
+  if (!exeRate) return null;  // exe rate es obligatoria
+
+  // Cantidad total de opciones útiles
+  const totalOpciones = 1 + [dmg2pct, speed7, dmgLvl20].filter(Boolean).length;
+
+  // Multiplicador según cantidad de opciones
+  let factorOpciones = 0;
+  if (totalOpciones === 2) factorOpciones = 0.3;
+  else if (totalOpciones === 3) factorOpciones = 1;
+  else return null;  // 1 opción (solo exe rate) → no se compra
 
   let base = 0, baseLvl15 = 0;
   if (tipo === "s3") {
@@ -114,8 +134,8 @@ export function precioArma(input: ArmaInput): number | null {
   const factorLuck = luck ? 1 : 0.25;
   const factorSkill = skill ? 1 : 0.25;
 
-  // Precio base × luck × skill × 1.5 (markup de armas)
-  let precio = precioPorLvl * factorLuck * factorSkill * 1.5;
+  // Precio base × luck × skill × 1.5 (markup de armas) × factor opciones
+  let precio = precioPorLvl * factorLuck * factorSkill * 1.5 * factorOpciones;
 
   // Bonus por socket (solo aplica a 400, plano al final, máximo 3 sockets)
   if (tipo === "400" && socket && socket > 0) {

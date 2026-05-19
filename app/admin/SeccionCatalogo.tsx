@@ -71,6 +71,7 @@ export default function SeccionCatalogo() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<EditableItem | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<EstadoItem | "todos">("activo");
+  const [filtroCategoria, setFiltroCategoria] = useState<Categoria | "todas">("todas");
   const [filtroAntig, setFiltroAntig] = useState<FiltroAntig>("todas");
   const [filtroDueno, setFiltroDueno] = useState<string>("todos");
   const [orden, setOrden] = useState<OrdenItem>("reciente");
@@ -126,6 +127,7 @@ export default function SeccionCatalogo() {
   const visibles = useMemo(() => {
     let result = items.filter((i) => {
       if (filtroEstado !== "todos" && i.estado !== filtroEstado) return false;
+      if (filtroCategoria !== "todas" && i.categoria !== filtroCategoria) return false;
       if (filtroDueno !== "todos" && i.dueno !== filtroDueno) return false;
       if (filtroAntig !== "todas") {
         const d = diasDesde(i.created_at);
@@ -162,7 +164,7 @@ export default function SeccionCatalogo() {
     });
 
     return result;
-  }, [items, filtroEstado, filtroAntig, filtroDueno, query, orden]);
+  }, [items, filtroEstado, filtroCategoria, filtroAntig, filtroDueno, query, orden]);
 
   const stats = {
     activo: items.filter((i) => i.estado === "activo").length,
@@ -237,6 +239,29 @@ export default function SeccionCatalogo() {
             ))}
           </select>
         </div>
+      </div>
+
+      {/* Filtro categoría */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className="text-[10px] font-body uppercase tracking-widest text-text-muted self-center mr-1">Categoría:</span>
+        {([
+          { v: "todas", l: "Todas" },
+          { v: "armadura", l: "🛡 Armaduras" },
+          { v: "arma", l: "⚔ Armas" },
+          { v: "ala", l: "🪽 Alas" },
+        ] as const).map((opt) => (
+          <button
+            key={opt.v}
+            onClick={() => setFiltroCategoria(opt.v as Categoria | "todas")}
+            className={`px-3 py-1.5 rounded font-body text-xs uppercase tracking-wider transition-colors ${
+              filtroCategoria === opt.v
+                ? "bg-neon-cyan/15 border border-neon-cyan/60 text-neon-cyan"
+                : "bg-bg-card border border-border-base text-text-secondary hover:border-border-strong"
+            }`}
+          >
+            {opt.l}
+          </button>
+        ))}
       </div>
 
       {/* Filtro estado */}

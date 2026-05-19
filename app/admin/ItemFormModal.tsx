@@ -459,19 +459,55 @@ function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved
       </div>
 
       <div>
-        <FieldLabel>Opciones obligatorias</FieldLabel>
-        <div className="grid grid-cols-2 gap-2">
-          <Checkbox checked={exeRate} onChange={setExeRate} label="exe rate 10%" hint="Obligatoria" />
-          <Checkbox checked={dmg2pct} onChange={setDmg2pct} label="dmg +2%" hint="Obligatoria" />
-        </div>
+        <FieldLabel>Opción obligatoria</FieldLabel>
+        <Checkbox checked={exeRate} onChange={setExeRate} label="exe rate 10%" hint="Sin esto, no se compra" />
       </div>
 
       <div>
-        <FieldLabel>Tercera opción</FieldLabel>
-        <div className="grid grid-cols-2 gap-2">
-          <Checkbox checked={dmgLvl20} onChange={setDmgLvl20} label="dmg lvl/20" hint="Opcional A" />
-          <Checkbox checked={speed7} onChange={setSpeed7} label="speed +7" hint="Opcional B" />
+        <FieldLabel>
+          Opciones extra (máximo 2)
+          <span className="ml-2 text-[10px] normal-case tracking-normal text-text-muted">
+            {[dmg2pct, speed7, dmgLvl20].filter(Boolean).length}/2 elegidas
+          </span>
+        </FieldLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { label: "dmg +2%", value: dmg2pct, setter: setDmg2pct },
+            { label: "speed +7", value: speed7, setter: setSpeed7 },
+            { label: "dmg lvl/20", value: dmgLvl20, setter: setDmgLvl20 },
+          ] as const).map((opt) => {
+            const totalExtras = [dmg2pct, speed7, dmgLvl20].filter(Boolean).length;
+            // Si ya hay 2 extras y este no está tildado → bloqueado
+            const bloqueado = !opt.value && totalExtras >= 2;
+            return (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => !bloqueado && opt.setter(!opt.value)}
+                disabled={bloqueado}
+                className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+                  opt.value
+                    ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
+                    : bloqueado
+                      ? "bg-bg-card border-border-base text-text-muted opacity-40 cursor-not-allowed"
+                      : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong cursor-pointer"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
+        {exeRate && [dmg2pct, speed7, dmgLvl20].filter(Boolean).length === 0 && (
+          <p className="text-[10px] font-body text-text-muted mt-1.5">
+            Con solo exe rate no se compra. Agregá al menos una opción extra.
+          </p>
+        )}
+        {exeRate && [dmg2pct, speed7, dmgLvl20].filter(Boolean).length === 1 && (
+          <p className="text-[10px] font-body text-neon-orange/80 mt-1.5">
+            Con 2 opciones útiles el precio se paga al 30%.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
