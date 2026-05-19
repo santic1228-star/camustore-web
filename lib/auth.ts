@@ -45,19 +45,16 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Verifica si el email del usuario actual está en la tabla `admins`.
- * Returns null si no es admin (o no está logueado).
+ * Verifica si el usuario actual es admin llamando a la función SQL `is_admin()`.
+ * Usar RPC en vez de SELECT directo porque la función tiene security definer
+ * y bypasea el RLS de la tabla `admins`.
  */
 export async function checkIsAdmin(user: User | null): Promise<boolean> {
-  if (!user?.email) return false;
-  const { data, error } = await supabase
-    .from("admins")
-    .select("email")
-    .eq("email", user.email)
-    .maybeSingle();
+  if (!user) return false;
+  const { data, error } = await supabase.rpc("is_admin");
   if (error) {
     console.warn("Error checkeando admin:", error);
     return false;
   }
-  return !!data;
+  return data === true;
 }
