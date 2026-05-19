@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Categoria, TipoItem, Raza, EstadoItem } from "@/lib/database.types";
 import ItemFormModal, { EditableItem } from "./ItemFormModal";
@@ -31,12 +31,49 @@ interface ItemAdmin {
   created_at: string;
 }
 
+type OrdenItem = "reciente" | "antiguo" | "nombre" | "venta_desc" | "dueno";
+type FiltroAntig = "todas" | "recientes" | "viejos";
+
+// =====================================================
+// HELPERS
+// =====================================================
+function tiempoRelativo(fechaIso: string): string {
+  const ms = Date.now() - new Date(fechaIso).getTime();
+  const seg = Math.floor(ms / 1000);
+  const min = Math.floor(seg / 60);
+  const hor = Math.floor(min / 60);
+  const dia = Math.floor(hor / 24);
+  const mes = Math.floor(dia / 30);
+  const anio = Math.floor(dia / 365);
+  if (seg < 60) return "hace segundos";
+  if (min < 60) return `hace ${min} min`;
+  if (hor < 24) return `hace ${hor}h`;
+  if (dia < 30) return `hace ${dia}d`;
+  if (mes < 12) return `hace ${mes} ${mes === 1 ? "mes" : "meses"}`;
+  return `hace ${anio} ${anio === 1 ? "año" : "años"}`;
+}
+
+function fechaCompleta(fechaIso: string): string {
+  const d = new Date(fechaIso);
+  return d.toLocaleString("es-AR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function diasDesde(fechaIso: string): number {
+  return Math.floor((Date.now() - new Date(fechaIso).getTime()) / (1000 * 60 * 60 * 24));
+}
+
 export default function SeccionCatalogo() {
   const [items, setItems] = useState<ItemAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<EditableItem | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<EstadoItem | "todos">("activo");
+  const [filtroAntig, setFiltroAntig] = useState<FiltroAntig>("todas");
+  const [filtroDueno, setFiltroDueno] = useState<string>("todos");
+  const [orden, setOrden] = useState<OrdenItem>("reciente");
   const [query, setQuery] = useState("");
 
   async function cargar() {
@@ -77,22 +114,55 @@ export default function SeccionCatalogo() {
     }
   }
 
-  const visibles = items.filter((i) => {
-    // Filtro por estado
-    if (filtroEstado !== "todos" && i.estado !== filtroEstado) return false;
-    // Filtro por búsqueda
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      const haystack = [
-        i.nombre, i.parte, i.raza, String(i.nivel),
-        i.tipo, i.categoria, i.dueno, i.estado,
-        i.luck ? "luck" : "",
-        i.socket ? `${i.socket} socket` : "",
-      ].filter(Boolean).join(" ").toLowerCase();
-      if (!haystack.includes(q)) return false;
+  // Lista única de dueños para el selector
+  const duenosDisponibles = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of items) {
+      if (i.dueno) set.add(i.dueno);
     }
-    return true;
-  });
+    return Array.from(set).sort();
+  }, [items]);
+
+  const visibles = useMemo(() => {
+    let result = items.filter((i) => {
+      if (filtroEstado !== "todos" && i.estado !== filtroEstado) return false;
+      if (filtroDueno !== "todos" && i.dueno !== filtroDueno) return false;
+      if (filtroAntig !== "todas") {
+        const d = diasDesde(i.created_at);
+        if (filtroAntig === "recientes" && d > 7) return false;
+        if (filtroAntig === "viejos" && d < 30) return false;
+      }
+      if (query.trim()) {
+        const q = query.toLowerCase();
+        const haystack = [
+          i.nombre, i.parte, i.raza, String(i.nivel),
+          i.tipo, i.categoria, i.dueno, i.estado,
+          i.luck ? "luck" : "",
+          i.socket ? `${i.socket} socket` : "",
+        ].filter(Boolean).join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+
+    // Ordenamiento
+    result = [...result].sort((a, b) => {
+      switch (orden) {
+        case "reciente":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case "antiguo":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "nombre":
+          return a.nombre.localeCompare(b.nombre);
+        case "venta_desc":
+          return b.precio_venta - a.precio_venta;
+        case "dueno":
+          return (a.dueno || "").localeCompare(b.dueno || "");
+      }
+    });
+
+    return result;
+  }, [items, filtroEstado, filtroAntig, filtroDueno, query, orden]);
 
   const stats = {
     activo: items.filter((i) => i.estado === "activo").length,
@@ -134,7 +204,44 @@ export default function SeccionCatalogo() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      {/* Dropdowns: orden + dueño */}
+      <div className="flex flex-wrap gap-3 mb-3">
+        <div className="flex-1 min-w-[150px]">
+          <label className="block text-[10px] font-body uppercase tracking-widest text-text-muted mb-1">
+            Ordenar por
+          </label>
+          <select
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as OrdenItem)}
+            className="w-full bg-bg-card border border-border-base focus:border-neon-cyan rounded px-3 py-2 font-body text-sm text-text-primary outline-none transition-colors cursor-pointer"
+          >
+            <option value="reciente">📅 Más nuevos primero</option>
+            <option value="antiguo">⌛ Más antiguos primero</option>
+            <option value="nombre">🔤 Nombre A-Z</option>
+            <option value="venta_desc">💰 Precio venta (mayor)</option>
+            <option value="dueno">👤 Por dueño</option>
+          </select>
+        </div>
+        <div className="flex-1 min-w-[150px]">
+          <label className="block text-[10px] font-body uppercase tracking-widest text-text-muted mb-1">
+            Dueño
+          </label>
+          <select
+            value={filtroDueno}
+            onChange={(e) => setFiltroDueno(e.target.value)}
+            className="w-full bg-bg-card border border-border-base focus:border-neon-cyan rounded px-3 py-2 font-body text-sm text-text-primary outline-none transition-colors cursor-pointer"
+          >
+            <option value="todos">Todos</option>
+            {duenosDisponibles.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Filtro estado */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className="text-[10px] font-body uppercase tracking-widest text-text-muted self-center mr-1">Estado:</span>
         {(["activo", "vendido", "retirado", "todos"] as const).map((e) => (
           <button
             key={e}
@@ -146,6 +253,28 @@ export default function SeccionCatalogo() {
             }`}
           >
             {e === "todos" ? "Todos" : e}
+          </button>
+        ))}
+      </div>
+
+      {/* Filtro antigüedad */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <span className="text-[10px] font-body uppercase tracking-widest text-text-muted self-center mr-1">Antigüedad:</span>
+        {([
+          { v: "todas", l: "Todas" },
+          { v: "recientes", l: "Recientes (<7d)" },
+          { v: "viejos", l: "Viejos (>30d)" },
+        ] as const).map((opt) => (
+          <button
+            key={opt.v}
+            onClick={() => setFiltroAntig(opt.v)}
+            className={`px-3 py-1.5 rounded font-body text-xs uppercase tracking-wider transition-colors ${
+              filtroAntig === opt.v
+                ? "bg-neon-cyan/15 border border-neon-cyan/60 text-neon-cyan"
+                : "bg-bg-card border border-border-base text-text-secondary hover:border-border-strong"
+            }`}
+          >
+            {opt.l}
           </button>
         ))}
       </div>
@@ -168,6 +297,7 @@ export default function SeccionCatalogo() {
                 <th className="py-2 pr-3 hidden lg:table-cell">Dueño</th>
                 <th className="py-2 pr-3 text-right">Compra</th>
                 <th className="py-2 pr-3 text-right">Venta</th>
+                <th className="py-2 pr-3 hidden md:table-cell">Carga</th>
                 <th className="py-2 pr-3">Estado</th>
                 <th className="py-2"></th>
               </tr>
@@ -195,6 +325,12 @@ export default function SeccionCatalogo() {
                   </td>
                   <td className="py-2 pr-3 text-right font-numeric font-bold text-neon-orange">
                     {it.precio_venta.toLocaleString("es-AR")}
+                  </td>
+                  <td
+                    className="py-2 pr-3 hidden md:table-cell text-text-muted text-xs"
+                    title={fechaCompleta(it.created_at)}
+                  >
+                    {tiempoRelativo(it.created_at)}
                   </td>
                   <td className="py-2 pr-3">
                     <EstadoBadge estado={it.estado} />
