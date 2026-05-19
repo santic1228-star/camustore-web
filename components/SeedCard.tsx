@@ -55,7 +55,7 @@ Precio: ${precioUnidad.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por unidad`;
           <p className="font-numeric font-bold text-xl neon-text-orange">
             {precioUnidad.toLocaleString("es-AR")}
           </p>
-          <p className="text-[10px] font-body text-text-muted">{CONFIG.CURRENCY}</p>
+          <p className="text-[10px] font-body text-text-muted">{CONFIG.CURRENCY} / unidad</p>
         </div>
       </div>
 

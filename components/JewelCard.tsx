@@ -67,12 +67,12 @@ Precio: ${precioPorBundle.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle
         </div>
         <div className="text-right">
           <p className="text-[10px] font-body text-text-muted uppercase tracking-wider mb-0.5">
-            Precio bundle
+            Precio
           </p>
           <p className="font-numeric font-bold text-xl neon-text-orange">
             {precioPorBundle.toLocaleString("es-AR")}
           </p>
-          <p className="text-[10px] font-body text-text-muted">{CONFIG.CURRENCY}</p>
+          <p className="text-[10px] font-body text-text-muted">{CONFIG.CURRENCY} / bundle</p>
         </div>
       </div>
 
