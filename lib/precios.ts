@@ -192,11 +192,26 @@ export function precioAlas(input: AlasInput): number | null {
 // =====================================================
 // JEWELS
 // =====================================================
-// Precio por bundle de 30 unidades.
-// El usuario carga cuántos BUNDLES tiene (0 a 99).
+// REGULARES: se compran en bundles de 30 unidades (campo `bundles`).
+// ESPECIALES: se compran por unidad individual (campo `cantidad`).
+// Tipo determina si es regular o especial.
 
-export type JewelTipo = "chaos" | "creation" | "soul" | "bless" | "harmony" | "life";
+export type JewelTipo =
+  | "chaos" | "creation" | "soul" | "bless" | "harmony" | "life"  // regulares
+  | "socket" | "luck_jewel" | "skill_jewel" | "additional";        // especiales
 
+export const JEWEL_REGULARES: JewelTipo[] = ["chaos", "creation", "soul", "bless", "harmony", "life"];
+export const JEWEL_ESPECIALES: JewelTipo[] = ["socket", "luck_jewel", "skill_jewel", "additional"];
+
+export function esJewelEspecial(tipo: JewelTipo): boolean {
+  return JEWEL_ESPECIALES.includes(tipo);
+}
+
+/**
+ * Precio de COMPRA (lo que pagás al jugador).
+ * - Regulares: precio por bundle de 30.
+ * - Especiales: precio por unidad individual.
+ */
 export const JEWEL_PRECIOS: Record<JewelTipo, number> = {
   chaos: 200,
   creation: 250,
@@ -204,6 +219,20 @@ export const JEWEL_PRECIOS: Record<JewelTipo, number> = {
   bless: 1000,
   harmony: 350,
   life: 250,
+  socket: 6000,
+  luck_jewel: 6000,
+  skill_jewel: 6000,
+  additional: 6000,
+};
+
+/**
+ * Multiplicador de venta por tipo.
+ * - Regulares: ×2.
+ * - Especiales: ×2.5.
+ */
+export const JEWEL_MULT_VENTA: Record<JewelTipo, number> = {
+  chaos: 2, creation: 2, soul: 2, bless: 2, harmony: 2, life: 2,
+  socket: 2.5, luck_jewel: 2.5, skill_jewel: 2.5, additional: 2.5,
 };
 
 export const JEWEL_LABELS: Record<JewelTipo, string> = {
@@ -213,10 +242,14 @@ export const JEWEL_LABELS: Record<JewelTipo, string> = {
   bless: "Jewel of Bless",
   harmony: "Jewel of Harmony",
   life: "Jewel of Life",
+  socket: "Jewel of Socket",
+  luck_jewel: "Jewel of Luck",
+  skill_jewel: "Jewel of Skill",
+  additional: "Jewel of Additional",
 };
 
 /**
- * Precio total por una cantidad de BUNDLES de 30 jewels.
+ * Precio total por una cantidad de BUNDLES de 30 jewels (regulares).
  */
 export function precioJewels(tipo: JewelTipo | null, bundles: number): number | null {
   if (!tipo) return null;

@@ -8,7 +8,9 @@ export type TipoItem = "s3" | "380" | "400";
 export type Raza = "Knight" | "Wizard" | "Elf" | "Gladiator" | "Lord" | "Summoner";
 export type EstadoItem = "activo" | "vendido" | "retirado";
 export type EstadoConsignacion = "pendiente" | "aprobado" | "rechazado" | "vendido";
-export type TipoJewel = "chaos" | "creation" | "soul" | "bless" | "harmony" | "life";
+export type TipoJewel =
+  | "chaos" | "creation" | "soul" | "bless" | "harmony" | "life"
+  | "socket" | "luck_jewel" | "skill_jewel" | "additional";
 export type TipoSeed = "max_life" | "damage_reduction";
 
 export interface ItemPublico {
@@ -39,6 +41,7 @@ export interface JewelPublico {
   id: string;
   tipo: TipoJewel;
   bundles: number;
+  cantidad: number;
   estado: EstadoItem;
   created_at: string;
 }
@@ -129,6 +132,7 @@ export interface Database {
           id?: string;
           tipo: TipoJewel;
           bundles?: number;
+          cantidad?: number;
           dueno?: string | null;
           estado?: EstadoItem;
         };

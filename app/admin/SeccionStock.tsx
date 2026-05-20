@@ -10,6 +10,7 @@ interface Jewel {
   id: string;
   tipo: TipoJewel;
   bundles: number;
+  cantidad: number;
   dueno: string | null;
   estado: EstadoItem;
   created_at: string;
@@ -28,11 +29,20 @@ interface Seed {
 // =====================================================
 // Cálculos de precios
 // =====================================================
-function precioCompraJewel(tipo: TipoJewel, bundles: number): number {
-  return JEWEL_PRECIOS[tipo] * bundles;
+import { esJewelEspecial, JEWEL_MULT_VENTA } from "@/lib/precios";
+
+/**
+ * Para un Jewel:
+ * - Si es REGULAR: usa j.bundles (cada bundle son 30 jewels, precio por bundle).
+ * - Si es ESPECIAL: usa j.cantidad (precio por unidad individual).
+ */
+function precioCompraJewel(j: { tipo: TipoJewel; bundles: number; cantidad: number }): number {
+  const unidad = JEWEL_PRECIOS[j.tipo];
+  const n = esJewelEspecial(j.tipo) ? j.cantidad : j.bundles;
+  return unidad * n;
 }
-function precioVentaJewel(tipo: TipoJewel, bundles: number): number {
-  return Math.round(precioCompraJewel(tipo, bundles) * 2); // ×2
+function precioVentaJewel(j: { tipo: TipoJewel; bundles: number; cantidad: number }): number {
+  return Math.round(precioCompraJewel(j) * JEWEL_MULT_VENTA[j.tipo]);
 }
 
 function precioCompraSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number): number {
@@ -41,7 +51,7 @@ function precioCompraSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: n
   return unit * cantidad;
 }
 function precioVentaSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number): number {
-  return Math.round(precioCompraSeed(tipo, ensamblada_penta, cantidad) * 3.5); // ×3.5
+  return Math.round(precioCompraSeed(tipo, ensamblada_penta, cantidad) * 3.5);
 }
 
 // =====================================================
@@ -151,8 +161,8 @@ export default function SeccionStock() {
               <thead>
                 <tr className="border-b border-border-base text-left font-body text-xs uppercase tracking-wider text-text-muted">
                   <th className="py-2 pr-3">Tipo</th>
-                  <th className="py-2 pr-3 text-right">Bundles</th>
-                  <th className="py-2 pr-3 text-right hidden sm:table-cell">Jewels</th>
+                  <th className="py-2 pr-3 text-right">Cantidad</th>
+                  <th className="py-2 pr-3 text-right hidden sm:table-cell">Unidades</th>
                   <th className="py-2 pr-3 text-right">Compra</th>
                   <th className="py-2 pr-3 text-right">Venta</th>
                   <th className="py-2 pr-3 hidden md:table-cell">Dueño</th>
@@ -161,30 +171,45 @@ export default function SeccionStock() {
                 </tr>
               </thead>
               <tbody>
-                {jewelsVisibles.map((j) => (
-                  <tr key={j.id} className="border-b border-border-base/40 font-body hover:bg-bg-card/30">
-                    <td className="py-2 pr-3 text-text-primary">{JEWEL_LABELS[j.tipo]}</td>
-                    <td className="py-2 pr-3 text-right font-numeric text-neon-cyan">{j.bundles}</td>
-                    <td className="py-2 pr-3 text-right font-numeric text-text-secondary hidden sm:table-cell">
-                      {(j.bundles * 30).toLocaleString("es-AR")}
-                    </td>
-                    <td className="py-2 pr-3 text-right font-numeric text-text-secondary">
-                      {precioCompraJewel(j.tipo, j.bundles).toLocaleString("es-AR")}
-                    </td>
-                    <td className="py-2 pr-3 text-right font-numeric font-bold text-neon-orange">
-                      {precioVentaJewel(j.tipo, j.bundles).toLocaleString("es-AR")}
-                    </td>
-                    <td className="py-2 pr-3 text-text-secondary hidden md:table-cell">{j.dueno || "—"}</td>
-                    <td className="py-2 pr-3"><EstadoBadge estado={j.estado} /></td>
-                    <td className="py-2 text-right">
-                      <ActionsMenu
-                        estado={j.estado}
-                        onCambiarEstado={(e) => cambiarEstadoJewel(j.id, e)}
-                        onEliminar={() => eliminar("jewels_stock", j.id)}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {jewelsVisibles.map((j) => {
+                  const especial = esJewelEspecial(j.tipo);
+                  const cantidadMostrar = especial ? j.cantidad : j.bundles;
+                  const unidadesTotal = especial ? j.cantidad : j.bundles * 30;
+                  const unidadesLabel = especial ? "u." : "j.";
+                  return (
+                    <tr key={j.id} className="border-b border-border-base/40 font-body hover:bg-bg-card/30">
+                      <td className="py-2 pr-3 text-text-primary">
+                        {JEWEL_LABELS[j.tipo]}
+                        {especial && (
+                          <span className="ml-2 badge bg-luck-gold/15 text-luck-gold border border-luck-gold/40 text-[9px]">
+                            especial
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 text-right font-numeric text-neon-cyan">
+                        {cantidadMostrar} <span className="text-[10px] text-text-muted">{especial ? "u." : "b."}</span>
+                      </td>
+                      <td className="py-2 pr-3 text-right font-numeric text-text-secondary hidden sm:table-cell">
+                        {unidadesTotal.toLocaleString("es-AR")} {unidadesLabel}
+                      </td>
+                      <td className="py-2 pr-3 text-right font-numeric text-text-secondary">
+                        {precioCompraJewel(j).toLocaleString("es-AR")}
+                      </td>
+                      <td className="py-2 pr-3 text-right font-numeric font-bold text-neon-orange">
+                        {precioVentaJewel(j).toLocaleString("es-AR")}
+                      </td>
+                      <td className="py-2 pr-3 text-text-secondary hidden md:table-cell">{j.dueno || "—"}</td>
+                      <td className="py-2 pr-3"><EstadoBadge estado={j.estado} /></td>
+                      <td className="py-2 text-right">
+                        <ActionsMenu
+                          estado={j.estado}
+                          onCambiarEstado={(e) => cambiarEstadoJewel(j.id, e)}
+                          onEliminar={() => eliminar("jewels_stock", j.id)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -329,27 +354,38 @@ function ActionsMenu({
 // =====================================================
 function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
   const [tipo, setTipo] = useState<"" | TipoJewel>("");
-  const [bundles, setBundles] = useState("1");
+  const [cant, setCant] = useState("1");  // bundles si regular, cantidad si especial
   const [dueno, setDueno] = useState("");
   const [saving, setSaving] = useState(false);
-  const bundlesNum = Math.max(0, Math.min(99, Number(bundles) || 0));
+
+  const especial = tipo ? esJewelEspecial(tipo as TipoJewel) : false;
+  const cantNum = especial
+    ? Math.max(0, Number(cant) || 0)              // sin tope para especiales
+    : Math.max(0, Math.min(99, Number(cant) || 0));  // 0-99 bundles para regulares
 
   async function guardar() {
-    if (!tipo || bundlesNum < 1) return;
+    if (!tipo || cantNum < 1) return;
     setSaving(true);
-    const { error } = await supabase.from("jewels_stock").insert({
-      tipo, bundles: bundlesNum, dueno: dueno.trim() || "Camus", estado: "activo",
-    });
+    const payload = esJewelEspecial(tipo as TipoJewel)
+      ? { tipo: tipo as TipoJewel, bundles: 0, cantidad: cantNum, dueno: dueno.trim() || "Camus", estado: "activo" as EstadoItem }
+      : { tipo: tipo as TipoJewel, bundles: cantNum, cantidad: 0, dueno: dueno.trim() || "Camus", estado: "activo" as EstadoItem };
+    const { error } = await supabase.from("jewels_stock").insert(payload);
     setSaving(false);
     if (error) alert("Error: " + error.message);
     else {
-      setTipo(""); setBundles("1"); setDueno("");
+      setTipo(""); setCant("1"); setDueno("");
       onSaved();
     }
   }
 
-  const compra = tipo ? precioCompraJewel(tipo, bundlesNum) : 0;
-  const venta = tipo ? precioVentaJewel(tipo, bundlesNum) : 0;
+  // Para preview, simulo el objeto j
+  const previewJ = tipo ? {
+    tipo: tipo as TipoJewel,
+    bundles: especial ? 0 : cantNum,
+    cantidad: especial ? cantNum : 0,
+  } : null;
+  const compra = previewJ ? precioCompraJewel(previewJ) : 0;
+  const venta = previewJ ? precioVentaJewel(previewJ) : 0;
 
   return (
     <div className="gamer-card rounded-lg p-4">
@@ -359,7 +395,7 @@ function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
           <FieldLabel>Tipo</FieldLabel>
           <Select<TipoJewel>
             value={tipo}
-            onChange={(v) => setTipo(v)}
+            onChange={(v) => { setTipo(v); setCant("1"); }}
             options={[
               { value: "chaos", label: "Chaos" },
               { value: "creation", label: "Creation" },
@@ -367,13 +403,17 @@ function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
               { value: "bless", label: "Bless" },
               { value: "harmony", label: "Harmony" },
               { value: "life", label: "Life" },
+              { value: "socket", label: "★ Socket" },
+              { value: "luck_jewel", label: "★ Luck" },
+              { value: "skill_jewel", label: "★ Skill" },
+              { value: "additional", label: "★ Additional" },
             ]}
             placeholder="—"
           />
         </div>
         <div>
-          <FieldLabel>Bundles (0-99)</FieldLabel>
-          <TextInput value={bundles} onChange={setBundles} type="number" min={1} max={99} />
+          <FieldLabel>{especial ? "Cantidad" : "Bundles (0-99)"}</FieldLabel>
+          <TextInput value={cant} onChange={setCant} type="number" min={1} max={especial ? undefined : 99} />
         </div>
         <div>
           <FieldLabel>Dueño (opcional)</FieldLabel>
@@ -382,16 +422,19 @@ function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
         <div className="flex items-end">
           <button
             onClick={guardar}
-            disabled={!tipo || bundlesNum < 1 || saving}
+            disabled={!tipo || cantNum < 1 || saving}
             className="btn-primary w-full px-4 py-2.5 rounded font-body text-xs uppercase tracking-widest disabled:opacity-40"
           >
             {saving ? "..." : "Agregar"}
           </button>
         </div>
       </div>
-      {tipo && bundlesNum > 0 && (
+      {tipo && cantNum > 0 && (
         <p className="font-body text-xs text-text-muted mt-3">
-          {bundlesNum} bundle{bundlesNum === 1 ? "" : "s"} ({(bundlesNum * 30).toLocaleString("es-AR")} jewels) ·
+          {especial
+            ? <>{cantNum} unidad{cantNum === 1 ? "" : "es"} ·</>
+            : <>{cantNum} bundle{cantNum === 1 ? "" : "s"} ({(cantNum * 30).toLocaleString("es-AR")} jewels) ·</>
+          }{" "}
           compra: <span className="text-text-secondary">{compra.toLocaleString("es-AR")} WC</span> ·
           venta: <span className="text-neon-orange font-bold">{venta.toLocaleString("es-AR")} WC</span>
         </p>

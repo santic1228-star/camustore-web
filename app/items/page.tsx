@@ -69,10 +69,13 @@ function searchItems(items: Item[], query: string): Item[] {
 // =====================================================
 // Agrupación de jewels/seeds por tipo
 // =====================================================
+import { esJewelEspecial, JEWEL_MULT_VENTA } from "@/lib/precios";
+
 interface JewelGroup {
   tipo: TipoJewel;
-  totalBundles: number;
-  precioPorBundle: number;
+  esEspecial: boolean;
+  totalUnidades: number;        // bundles (regular) o cantidad (especial)
+  precioUnitario: number;       // por bundle (regular) o por jewel (especial)
 }
 interface SeedGroup {
   tipo: TipoSeed;
@@ -84,18 +87,23 @@ interface SeedGroup {
 function agruparJewels(stocks: JewelPublico[]): JewelGroup[] {
   const map = new Map<TipoJewel, JewelGroup>();
   for (const s of stocks) {
+    const especial = esJewelEspecial(s.tipo);
+    const unidades = especial ? s.cantidad : s.bundles;
+    if (unidades <= 0) continue;
+
     const ex = map.get(s.tipo);
     if (ex) {
-      ex.totalBundles += s.bundles;
+      ex.totalUnidades += unidades;
     } else {
       map.set(s.tipo, {
         tipo: s.tipo,
-        totalBundles: s.bundles,
-        precioPorBundle: Math.round(JEWEL_PRECIOS[s.tipo] * 2),  // ×2 venta
+        esEspecial: especial,
+        totalUnidades: unidades,
+        precioUnitario: Math.round(JEWEL_PRECIOS[s.tipo] * JEWEL_MULT_VENTA[s.tipo]),
       });
     }
   }
-  return Array.from(map.values()).filter((g) => g.totalBundles > 0);
+  return Array.from(map.values()).filter((g) => g.totalUnidades > 0);
 }
 
 function agruparSeeds(stocks: SeedPublico[]): SeedGroup[] {
