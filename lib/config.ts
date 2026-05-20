@@ -10,7 +10,7 @@ export const CONFIG = {
 
   // WhatsApp — IMPORTANTE: reemplazá con tu número real (sin +, sin espacios)
   // Formato: código país + código área + número. Ej Argentina Córdoba: 5493514567890
-  WHATSAPP_NUMBER: "5493510000000",
+  WHATSAPP_NUMBER: "5493515153481",
 
   // Texto que aparece en mensajes de consulta de items
   WHATSAPP_GREETING: "Hola CamuStore!",
