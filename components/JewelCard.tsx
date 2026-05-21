@@ -2,6 +2,7 @@
 
 import { CONFIG, whatsappLink } from "@/lib/config";
 import { JEWEL_LABELS } from "@/lib/precios";
+import { trackEvento } from "@/lib/analytics";
 import type { TipoJewel } from "@/lib/database.types";
 
 interface Props {
@@ -103,6 +104,12 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle`
         href={whatsappLink(wpMsg)}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={() => trackEvento({
+          tipo: "consultar_jewel",
+          item_categoria: "jewel",
+          item_nombre: label,
+          item_precio: precioUnitario,
+        })}
         className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest mt-1"
       >
         Consultar

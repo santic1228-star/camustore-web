@@ -1,5 +1,8 @@
+"use client";
+
 import { CONFIG, whatsappLink } from "@/lib/config";
 import { RAZA_COLORS } from "@/lib/razas";
+import { trackEvento } from "@/lib/analytics";
 import type { Item } from "@/lib/types";
 
 interface Props {
@@ -15,6 +18,16 @@ export default function ItemCard({ item }: Props) {
 • Tipo: ${item.tipo} ${item.socket ? `· socket ${item.socket}` : ""}
 • Nivel ${item.nivel} · ${item.opciones} ${item.luck ? "· luck" : ""}
 • Precio: ${item.precio_venta.toLocaleString("es-AR")} ${CONFIG.CURRENCY}`;
+
+  function onConsultar() {
+    trackEvento({
+      tipo: "consultar_item",
+      item_categoria: item.categoria,
+      item_nombre: `${item.nombre} ${item.parte}`.trim(),
+      item_tipo: item.tipo,
+      item_precio: item.precio_venta,
+    });
+  }
 
   return (
     <article
@@ -74,6 +87,7 @@ export default function ItemCard({ item }: Props) {
           href={whatsappLink(wpMessage)}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={onConsultar}
           className="btn-whatsapp px-3 py-2 rounded text-xs font-body uppercase tracking-wider"
         >
           Consultar

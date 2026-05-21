@@ -5,6 +5,7 @@ import AdminGate from "@/components/AdminGate";
 import AdminLayout, { AdminTab } from "@/components/AdminLayout";
 import SeccionCatalogo from "./SeccionCatalogo";
 import SeccionStock from "./SeccionStock";
+import SeccionAnalytics from "./SeccionAnalytics";
 
 export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("catalogo");
@@ -15,6 +16,7 @@ export default function AdminPage() {
         <AdminLayout user={user} activeTab={tab} onTabChange={setTab}>
           {tab === "catalogo" && <SeccionCatalogo />}
           {tab === "stock" && <SeccionStock />}
+          {tab === "analytics" && <SeccionAnalytics />}
           {tab === "pendientes" && (
             <div className="text-center py-16">
               <p className="text-4xl mb-3">⏳</p>

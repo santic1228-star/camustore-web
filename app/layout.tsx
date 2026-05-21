@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cinzel, JetBrains_Mono, Orbitron } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import { CONFIG } from "@/lib/config";
 import "./globals.css";
 
@@ -45,6 +46,7 @@ export default function RootLayout({
     <html lang="es" className={`${cinzel.variable} ${jetbrains.variable} ${orbitron.variable}`}>
       <body className="bg-bg-deep text-text-primary font-body antialiased min-h-screen">
         {children}
+        <Analytics />
       </body>
     </html>
   );

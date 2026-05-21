@@ -116,7 +116,7 @@ export default function SeccionArmaduras() {
 
       {/* Resultado */}
       <div className="lg:sticky lg:top-24 lg:self-start">
-        <PriceResult precio={precio} descripcion={descripcion} motivoNoPrecio={motivoNoPrecio} />
+        <PriceResult precio={precio} descripcion={descripcion} motivoNoPrecio={motivoNoPrecio} categoria="armadura" nombre={nombre || parte || "armadura"} />
       </div>
     </div>
   );

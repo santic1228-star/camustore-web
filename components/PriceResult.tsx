@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIG, whatsappLink } from "@/lib/config";
+import { trackEvento } from "@/lib/analytics";
 
 interface Props {
   precio: number | null;
@@ -8,15 +9,28 @@ interface Props {
   descripcion: string;
   /** Mensaje cuando no se puede cotizar (falta dato o item no se compra) */
   motivoNoPrecio?: string;
+  /** Para analytics: categoría del item cotizado */
+  categoria?: string;
+  /** Para analytics: nombre del item cotizado */
+  nombre?: string;
 }
 
-export default function PriceResult({ precio, descripcion, motivoNoPrecio }: Props) {
+export default function PriceResult({ precio, descripcion, motivoNoPrecio, categoria, nombre }: Props) {
   const tienePrecio = precio !== null && precio > 0;
   const formattedPrecio = precio !== null ? precio.toLocaleString("es-AR") : "—";
 
   const wpMessage = `${CONFIG.WHATSAPP_GREETING} Quiero vender este item:
 ${descripcion}
 Cotización: ${formattedPrecio} ${CONFIG.CURRENCY}`;
+
+  function onCotizar() {
+    trackEvento({
+      tipo: "cotizar",
+      item_categoria: categoria ?? null,
+      item_nombre: nombre || "(cotización)",
+      item_precio: precio,
+    });
+  }
 
   return (
     <div className={`gamer-card rounded-lg p-6 sm:p-8 ${tienePrecio ? "neon-border-cyan animate-pulse-glow" : ""}`}>
@@ -39,6 +53,7 @@ Cotización: ${formattedPrecio} ${CONFIG.CURRENCY}`;
             href={whatsappLink(wpMessage)}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={onCotizar}
             className="btn-whatsapp w-full block text-center px-6 py-4 rounded font-body text-sm uppercase tracking-widest"
           >
             ⚡ Vendo este item

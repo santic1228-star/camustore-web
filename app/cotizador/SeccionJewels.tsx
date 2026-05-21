@@ -82,7 +82,7 @@ export default function SeccionJewels() {
       </div>
 
       <div className="lg:sticky lg:top-24 lg:self-start">
-        <PriceResult precio={precio} descripcion={descripcion} motivoNoPrecio={motivoNoPrecio} />
+        <PriceResult precio={precio} descripcion={descripcion} motivoNoPrecio={motivoNoPrecio} categoria="jewel" nombre={tipo ? JEWEL_LABELS[tipo] : "jewel"} />
       </div>
     </div>
   );
