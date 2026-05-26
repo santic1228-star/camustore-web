@@ -321,7 +321,8 @@ export function precioSeed(tipo: SeedTipo | null, ensambladaPenta: boolean): num
 
 /**
  * Precio de VENTA de la seed.
- * - max_life, damage_reduction, penta → ×3.5 (regla general de seeds)
+ * - max_life, damage_reduction → ×3.5 (regla general de seeds)
+ * - penta → ×2.1 (rompe la regla)
  * - exc_dmg_rate, crit_dmg_rate → HARDCODEADO 2.000 (rompe la regla)
  */
 export function precioVentaSeed(tipo: SeedTipo | null, ensambladaPenta: boolean): number | null {
@@ -331,7 +332,8 @@ export function precioVentaSeed(tipo: SeedTipo | null, ensambladaPenta: boolean)
   }
   const compra = precioSeed(tipo, ensambladaPenta);
   if (compra === null) return null;
-  return Math.round(compra * 3.5);
+  const mult = tipo === "penta" ? 2.1 : 3.5;
+  return Math.round(compra * mult);
 }
 
 // =====================================================
@@ -384,3 +386,88 @@ export function precioVentaGema(tipo: GemaTipo | null): number | null {
   return GEMA_PRECIOS[tipo] * GEMA_MULT_VENTA;
 }
 
+
+// =====================================================
+// JOYERÍA (anillos y pendientes)
+// =====================================================
+// Categoría nueva. Dos tipos: anillo y pendiente.
+//
+// ANILLOS:
+//   - Requisito: HP + DD + REF (sin eso → no se compra).
+//   - Variable: Life Recovery % (1 a 7).
+//   - Escala de compra: 4.000 (n0, 1%) a 32.000 (n15, 7%). 20% más baratos que pendientes.
+//
+// PENDIENTES:
+//   - Requisitos: exe rate 10% + dmg 2% (obligatorias) Y opción variable = Life Recovery.
+//     (Si la opción variable es mana o AG en vez de Life Recovery → no se compra).
+//   - Tercera opción de arma (speed7/dmglvl20): requisito de calidad, no afecta precio.
+//   - Variable: Life Recovery % (1 a 7).
+//   - Escala de compra: 5.000 (n0, 1%) a 40.000 (n15, 7%).
+//
+// Modelo de precio (Variante B - "% domina fuerte"):
+//   El % es el factor de rareza dominante (escala cuadrática), el nivel ajusta
+//   dentro de la banda de cada %.
+//
+// Venta = compra × 4.
+
+export type TipoJoya = "anillo" | "pendiente";
+
+export const JOYA_LABELS: Record<TipoJoya, string> = {
+  anillo: "Anillo",
+  pendiente: "Pendiente",
+};
+
+/** Opción variable del pendiente. Solo "life" se compra. */
+export type OpcionVariablePendiente = "life" | "mana" | "ag";
+
+export const JOYA_MULT_VENTA = 4;
+
+/**
+ * Precio base de joyería según nivel (0-15) y Life Recovery % (1-7).
+ * Variante B: % domina fuerte (curva cuadrática), nivel ajusta dentro de la banda.
+ */
+function precioJoyaBase(nivel: number, pct: number, min: number, max: number): number {
+  const fPct = Math.pow((pct - 1) / 6, 2);   // 0..1 con curva cuadrática
+  const fNivel = Math.max(0, Math.min(15, nivel)) / 15;
+  const rango = max - min;
+  const anchoBanda = rango / 7;
+  const pisoBanda = min + fPct * (rango - anchoBanda);
+  return Math.round(pisoBanda + fNivel * anchoBanda);
+}
+
+export interface JoyaInput {
+  tipo: TipoJoya | null;
+  nivel: number;              // 0-15
+  lifeRecovery: number;       // 1-7 (% de Life Recovery)
+  // Anillo:
+  hpDdRef?: boolean;
+  // Pendiente:
+  exeRate?: boolean;
+  dmg2pct?: boolean;
+  opcionVariable?: OpcionVariablePendiente;  // debe ser "life" para comprarse
+}
+
+/** Precio de COMPRA de una joya. null si no se compra. */
+export function precioJoya(input: JoyaInput): number | null {
+  const { tipo, nivel, lifeRecovery } = input;
+  if (!tipo) return null;
+  if (lifeRecovery < 1 || lifeRecovery > 7) return null;
+
+  if (tipo === "anillo") {
+    // Requisito: HP + DD + REF
+    if (!input.hpDdRef) return null;
+    return precioJoyaBase(nivel, lifeRecovery, 4000, 32000);
+  } else {
+    // pendiente: requisitos exe rate + 2% + opción variable Life Recovery
+    if (!input.exeRate || !input.dmg2pct) return null;
+    if (input.opcionVariable !== "life") return null;
+    return precioJoyaBase(nivel, lifeRecovery, 5000, 40000);
+  }
+}
+
+/** Precio de VENTA de una joya (compra × 4). */
+export function precioVentaJoya(input: JoyaInput): number | null {
+  const compra = precioJoya(input);
+  if (compra === null) return null;
+  return Math.round(compra * JOYA_MULT_VENTA);
+}

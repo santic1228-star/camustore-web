@@ -8,13 +8,14 @@ import WhatsAppButton from "@/components/WhatsAppButton";
 import JewelCard from "@/components/JewelCard";
 import SeedCard from "@/components/SeedCard";
 import GemaCard from "@/components/GemaCard";
+import JoyaCard from "@/components/JoyaCard";
 import { supabase } from "@/lib/supabase";
 import { getRaza } from "@/lib/razas";
 import { JEWEL_PRECIOS, SEED_LABELS, GEMA_PRECIOS, GEMA_MULT_VENTA } from "@/lib/precios";
 import type { Item } from "@/lib/types";
-import type { ItemPublico, JewelPublico, SeedPublico, GemaPublico, TipoJewel, TipoSeed, TipoGema } from "@/lib/database.types";
+import type { ItemPublico, JewelPublico, SeedPublico, GemaPublico, JoyaPublico, TipoJewel, TipoSeed, TipoGema } from "@/lib/database.types";
 
-type Tab = "items" | "consumibles" | "gemas";
+type Tab = "items" | "consumibles" | "gemas" | "joyeria";
 
 // =====================================================
 // Adaptador de ItemPublico → Item (formato que ItemCard espera)
@@ -162,6 +163,7 @@ export default function ItemsPage() {
   const [jewels, setJewels] = useState<JewelGroup[]>([]);
   const [seeds, setSeeds] = useState<SeedGroup[]>([]);
   const [gemas, setGemas] = useState<GemaGroup[]>([]);
+  const [joyas, setJoyas] = useState<JoyaPublico[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -169,11 +171,12 @@ export default function ItemsPage() {
     async function cargar() {
       try {
         setLoading(true);
-        const [resItems, resJewels, resSeeds, resGemas] = await Promise.all([
+        const [resItems, resJewels, resSeeds, resGemas, resJoyas] = await Promise.all([
           supabase.from("items_publicos").select("*").order("created_at", { ascending: false }),
           supabase.from("jewels_publicos").select("*"),
           supabase.from("seeds_publicos").select("*"),
           supabase.from("gemas_publicos").select("*"),
+          supabase.from("joyeria_publicos").select("*").order("created_at", { ascending: false }),
         ]);
 
         if (resItems.error) throw resItems.error;
@@ -182,6 +185,7 @@ export default function ItemsPage() {
         if (resJewels.data) setJewels(agruparJewels(resJewels.data as JewelPublico[]));
         if (resSeeds.data) setSeeds(agruparSeeds(resSeeds.data as SeedPublico[]));
         if (resGemas.data) setGemas(agruparGemas(resGemas.data as GemaPublico[]));
+        if (resJoyas.data) setJoyas(resJoyas.data as JoyaPublico[]);
       } catch (err) {
         console.error("Error cargando catálogo:", err);
         setError("No pudimos cargar el catálogo. Probá refrescando.");
@@ -250,6 +254,16 @@ export default function ItemsPage() {
               }`}
             >
               🔮 Gemas y otros <span className="opacity-60">({gemas.length})</span>
+            </button>
+            <button
+              onClick={() => setTab("joyeria")}
+              className={`px-4 py-2.5 font-body text-xs sm:text-sm uppercase tracking-widest border-b-2 transition-colors ${
+                tab === "joyeria"
+                  ? "border-neon-cyan text-neon-cyan"
+                  : "border-transparent text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              💍 Joyería <span className="opacity-60">({joyas.length})</span>
             </button>
           </div>
 
@@ -369,6 +383,24 @@ export default function ItemsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {gemas.map((g) => (
                     <GemaCard key={g.tipo} group={g} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: JOYERÍA */}
+          {!loading && !error && tab === "joyeria" && (
+            <div className="animate-fade-in">
+              {joyas.length === 0 ? (
+                <div className="text-center py-16 font-body text-text-secondary">
+                  <p className="text-2xl mb-2">💍</p>
+                  <p>Todavía no hay joyería cargada.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {joyas.map((j) => (
+                    <JoyaCard key={j.id} joya={j} />
                   ))}
                 </div>
               )}

@@ -18,6 +18,9 @@ export type TipoGema =
   | "gema_gp" | "ring_wheel" | "item_acc" | "purple_box" | "chaos_box"
   | "kundun_box_5" | "kundun_box_4";
 
+export type TipoJoya = "anillo" | "pendiente";
+export type OpcionVariableJoya = "life" | "mana" | "ag";
+
 export interface ItemPublico {
   id: string;
   categoria: Categoria;
@@ -64,6 +67,23 @@ export interface GemaPublico {
   id: string;
   tipo: TipoGema;
   cantidad: number;
+  estado: EstadoItem;
+  created_at: string;
+}
+
+export interface JoyaPublico {
+  id: string;
+  tipo: TipoJoya;
+  nombre: string | null;
+  nivel: number;
+  life_recovery: number;
+  hp_dd_ref: boolean;
+  exe_rate: boolean;
+  dmg_2pct: boolean;
+  tercera_opcion: string | null;
+  opcion_variable: OpcionVariableJoya | null;
+  raza: string | null;
+  precio_venta: number;
   estado: EstadoItem;
   created_at: string;
 }
@@ -174,6 +194,27 @@ export interface Database {
         };
         Update: Partial<GemaPublico> & { dueno?: string | null };
       };
+      joyeria_stock: {
+        Row: JoyaPublico & { dueno: string | null; updated_at: string; precio_compra: number };
+        Insert: {
+          id?: string;
+          tipo: TipoJoya;
+          nombre?: string | null;
+          nivel?: number;
+          life_recovery?: number;
+          hp_dd_ref?: boolean;
+          exe_rate?: boolean;
+          dmg_2pct?: boolean;
+          tercera_opcion?: string | null;
+          opcion_variable?: OpcionVariableJoya | null;
+          raza?: string | null;
+          dueno?: string | null;
+          precio_compra?: number;
+          precio_venta?: number;
+          estado?: EstadoItem;
+        };
+        Update: Partial<JoyaPublico> & { dueno?: string | null; precio_compra?: number };
+      };
       admins: {
         Row: { email: string; nombre: string | null; created_at: string };
         Insert: { email: string; nombre?: string | null };
@@ -192,6 +233,7 @@ export interface Database {
       jewels_publicos: { Row: JewelPublico };
       seeds_publicos: { Row: SeedPublico };
       gemas_publicos: { Row: GemaPublico };
+      joyeria_publicos: { Row: JoyaPublico };
     };
   };
 }
