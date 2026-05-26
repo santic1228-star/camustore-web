@@ -8,8 +8,9 @@ import SeccionArmas from "./SeccionArmas";
 import SeccionAlas from "./SeccionAlas";
 import SeccionJewels from "./SeccionJewels";
 import SeccionSeeds from "./SeccionSeeds";
+import SeccionGemas from "./SeccionGemas";
 
-type Tab = "armaduras" | "armas" | "alas" | "jewels" | "seeds";
+type Tab = "armaduras" | "armas" | "alas" | "jewels" | "seeds" | "gemas";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "armaduras", label: "Armaduras", icon: "🛡" },
@@ -17,6 +18,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "alas", label: "Alas", icon: "🪽" },
   { id: "jewels", label: "Jewels", icon: "💎" },
   { id: "seeds", label: "Seeds", icon: "🌱" },
+  { id: "gemas", label: "Gemas y otros", icon: "🔮" },
 ];
 
 export default function CotizadorPage() {
@@ -62,6 +64,7 @@ export default function CotizadorPage() {
             {tab === "alas" && <SeccionAlas />}
             {tab === "jewels" && <SeccionJewels />}
             {tab === "seeds" && <SeccionSeeds />}
+            {tab === "gemas" && <SeccionGemas />}
           </div>
         </div>
       </main>

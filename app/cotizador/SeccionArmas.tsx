@@ -8,14 +8,16 @@ import { precioArma, ArmaInput } from "@/lib/precios";
 export default function SeccionArmas() {
   const [parte, setParte] = useState("");
   const [nivel, setNivel] = useState("9");
-  const [exeRate, setExeRate] = useState(false);
-  const [dmgLvl20, setDmgLvl20] = useState(false);
-  const [dmg2pct, setDmg2pct] = useState(false);
-  const [speed7, setSpeed7] = useState(false);
+  const [exeRate, setExeRate] = useState(true);
+  const [dmg2pct, setDmg2pct] = useState(true);
+  const [tercera, setTercera] = useState<"" | "speed7" | "dmglvl20">("speed7");
   const [tipo, setTipo] = useState<"" | "s3" | "380" | "400">("");
-  const [socket, setSocket] = useState<number>(0);  // 0, 1, 2 o 3
+  const [socket, setSocket] = useState<number>(2);
   const [luck, setLuck] = useState(true);
   const [skill, setSkill] = useState(true);
+
+  const speed7 = tercera === "speed7";
+  const dmgLvl20 = tercera === "dmglvl20";
 
   const precio = useMemo(() => {
     const input: ArmaInput = {
@@ -43,15 +45,24 @@ export default function SeccionArmas() {
     `• Luck: ${luck ? "Sí" : "No"} · Skill: ${skill ? "Sí" : "No"}`,
   ].join("\n");
 
-  const totalOpc = (exeRate ? 1 : 0) + [dmg2pct, speed7, dmgLvl20].filter(Boolean).length;
+  const tieneTercera = speed7 || dmgLvl20;
 
-  const motivoNoPrecio = !tipo
-    ? "Elegí el tipo del arma (s3, 380 o 400)."
-    : !exeRate
-    ? "Las armas necesitan exe rate 10% (obligatoria)."
-    : totalOpc < 2
-    ? "Con solo exe rate no se compra. Agregá al menos 1 opción extra."
-    : undefined;
+  let motivoNoPrecio: string | undefined;
+  if (!tipo) {
+    motivoNoPrecio = "Elegí el tipo del arma (s3, 380 o 400).";
+  } else if (!exeRate || !dmg2pct) {
+    motivoNoPrecio = "Obligatorias: exe rate 10% + dmg +2%. Sin ambas no se compra.";
+  } else if (tipo === "s3" || tipo === "380") {
+    if (!tieneTercera) motivoNoPrecio = "Las armas s3 y 380 necesitan las 3 opciones (falta la tercera).";
+    else if (!luck) motivoNoPrecio = "Las armas s3 y 380 se compran solo con luck.";
+    else if (!skill) motivoNoPrecio = "Las armas s3 y 380 se compran solo con skill.";
+  } else if (tipo === "400") {
+    if (!tieneTercera) {
+      if (!luck || !skill || socket < 2) {
+        motivoNoPrecio = "Arma 400 con 2 opciones (rate + 2%) se compra solo con luck + skill + mínimo 2 sockets.";
+      }
+    }
+  }
 
   return (
     <div className="grid lg:grid-cols-2 gap-6">
@@ -68,47 +79,53 @@ export default function SeccionArmas() {
         </div>
 
         <div>
-          <FieldLabel>Opción obligatoria</FieldLabel>
-          <Checkbox checked={exeRate} onChange={setExeRate} label="exe rate 10%" hint="Sin esto, no se compra" />
+          <FieldLabel>Opciones obligatorias</FieldLabel>
+          <div className="grid grid-cols-2 gap-2">
+            <Checkbox checked={exeRate} onChange={setExeRate} label="exe rate 10%" hint="Obligatoria" />
+            <Checkbox checked={dmg2pct} onChange={setDmg2pct} label="dmg +2%" hint="Obligatoria" />
+          </div>
         </div>
 
         <div>
-          <FieldLabel>
-            Opciones extra (máximo 2)
-            <span className="ml-2 text-[10px] normal-case tracking-normal text-text-muted">
-              {[dmg2pct, speed7, dmgLvl20].filter(Boolean).length}/2 elegidas
-            </span>
-          </FieldLabel>
+          <FieldLabel>Tercera opción</FieldLabel>
           <div className="grid grid-cols-3 gap-2">
-            {([
-              { label: "dmg +2%", value: dmg2pct, setter: setDmg2pct },
-              { label: "speed +7", value: speed7, setter: setSpeed7 },
-              { label: "dmg lvl/20", value: dmgLvl20, setter: setDmgLvl20 },
-            ] as const).map((opt) => {
-              const totalExtras = [dmg2pct, speed7, dmgLvl20].filter(Boolean).length;
-              const bloqueado = !opt.value && totalExtras >= 2;
-              return (
-                <button
-                  key={opt.label}
-                  type="button"
-                  onClick={() => !bloqueado && opt.setter(!opt.value)}
-                  disabled={bloqueado}
-                  className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
-                    opt.value
-                      ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
-                      : bloqueado
-                        ? "bg-bg-card border-border-base text-text-muted opacity-40 cursor-not-allowed"
-                        : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong cursor-pointer"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
+            <button
+              type="button"
+              onClick={() => setTercera("")}
+              className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+                tercera === ""
+                  ? "bg-bg-card-hover border-border-strong text-text-primary"
+                  : "bg-bg-card border-border-base text-text-muted hover:border-border-strong"
+              }`}
+            >
+              Ninguna
+            </button>
+            <button
+              type="button"
+              onClick={() => setTercera("speed7")}
+              className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+                tercera === "speed7"
+                  ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
+                  : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong"
+              }`}
+            >
+              speed +7
+            </button>
+            <button
+              type="button"
+              onClick={() => setTercera("dmglvl20")}
+              className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+                tercera === "dmglvl20"
+                  ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
+                  : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong"
+              }`}
+            >
+              dmg lvl/20
+            </button>
           </div>
-          {exeRate && [dmg2pct, speed7, dmgLvl20].filter(Boolean).length === 1 && (
+          {tipo === "400" && !tieneTercera && (
             <p className="text-[10px] font-body text-neon-orange/80 mt-1.5">
-              Con 2 opciones útiles el precio se paga al 30%.
+              Arma 400 sin tercera opción: se paga 40% menos (requiere luck + skill + 2 sockets).
             </p>
           )}
         </div>
@@ -118,7 +135,7 @@ export default function SeccionArmas() {
             <FieldLabel>Tipo</FieldLabel>
             <Select<"s3" | "380" | "400">
               value={tipo}
-              onChange={(v) => setTipo(v)}
+              onChange={(v) => { setTipo(v); if (v === "400" && socket < 2) setSocket(2); }}
               options={[
                 { value: "s3", label: "s3" },
                 { value: "380", label: "380" },
@@ -161,9 +178,9 @@ export default function SeccionArmas() {
           <div>
             <FieldLabel>¿Tiene Skill?</FieldLabel>
             <PillToggle value={skill} onChange={setSkill} />
-            {!skill && (
+            {!skill && tipo === "400" && tieneTercera && (
               <p className="text-[10px] font-body text-neon-orange mt-1.5 uppercase tracking-wider">
-                Armas sin skill: ×0,25
+                Arma 400 sin skill: ×0,25
               </p>
             )}
           </div>

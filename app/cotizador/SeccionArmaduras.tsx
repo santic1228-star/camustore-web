@@ -11,7 +11,7 @@ export default function SeccionArmaduras() {
   const [nivel, setNivel] = useState("10");
   const [hpDdRef, setHpDdRef] = useState(false);
   const [tipo, setTipo] = useState<"" | "s3" | "380" | "400">("");
-  const [socket, setSocket] = useState<number>(0);  // 0, 1, 2 o 3
+  const [socket, setSocket] = useState<number>(2);  // mínimo 2 para 400
   const [luck, setLuck] = useState(true);
 
   const precio = useMemo(() => {
@@ -36,6 +36,10 @@ export default function SeccionArmaduras() {
     ? "Elegí el tipo del item (s3, 380 o 400)."
     : !hpDdRef
     ? "Las armaduras se compran solo si tienen HP, DD y REF (las 3 opciones)."
+    : (tipo === "s3" || tipo === "380") && !luck
+    ? "Los items s3 y 380 se compran solo con luck."
+    : tipo === "400" && socket < 2
+    ? "Los items 400 se compran solo con 2 o 3 sockets."
     : undefined;
 
   return (
@@ -73,7 +77,7 @@ export default function SeccionArmaduras() {
             <FieldLabel>Tipo</FieldLabel>
             <Select<"s3" | "380" | "400">
               value={tipo}
-              onChange={(v) => setTipo(v)}
+              onChange={(v) => { setTipo(v); if (v === "400" && socket < 2) setSocket(2); }}
               options={[
                 { value: "s3", label: "s3" },
                 { value: "380", label: "380" },
@@ -83,9 +87,9 @@ export default function SeccionArmaduras() {
             />
           </div>
           <div>
-            <FieldLabel>Sockets {tipo === "400" ? "" : "· solo 400"}</FieldLabel>
+            <FieldLabel>Sockets {tipo === "400" ? "· mín. 2" : "· solo 400"}</FieldLabel>
             <div className={`inline-flex bg-bg-card border border-border-base rounded p-0.5 gap-0.5 w-full ${tipo !== "400" ? "opacity-40 pointer-events-none" : ""}`}>
-              {[0, 1, 2, 3].map((n) => (
+              {[2, 3].map((n) => (
                 <button
                   key={n}
                   type="button"

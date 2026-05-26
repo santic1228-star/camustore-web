@@ -195,7 +195,7 @@ function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onS
   const [nivel, setNivel] = useState(String(editItem?.nivel ?? 10));
   const [hpDdRef, setHpDdRef] = useState(editItem?.hp_dd_ref ?? true);
   const [tipo, setTipo] = useState<"" | TipoItem>(editItem?.tipo || "");
-  const [socket, setSocket] = useState(editItem?.socket || 0);
+  const [socket, setSocket] = useState(editItem?.socket || 2);
   const [luck, setLuck] = useState(editItem?.luck ?? true);
   const [dueno, setDueno] = useState(editItem?.dueno || "");
   const [precioCompraOverride, setPrecioCompraOverride] = useState(
@@ -314,8 +314,8 @@ function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onS
           />
         </div>
         <div>
-          <FieldLabel>Sockets {tipo === "400" ? "" : "· solo 400"}</FieldLabel>
-          <SocketSelector value={socket} onChange={setSocket} disabled={tipo !== "400"} />
+          <FieldLabel>Sockets {tipo === "400" ? "· mín. 2" : "· solo 400"}</FieldLabel>
+          <SocketSelector value={socket} onChange={setSocket} disabled={tipo !== "400"} min={2} />
         </div>
       </div>
 
@@ -459,53 +459,53 @@ function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved
       </div>
 
       <div>
-        <FieldLabel>Opción obligatoria</FieldLabel>
-        <Checkbox checked={exeRate} onChange={setExeRate} label="exe rate 10%" hint="Sin esto, no se compra" />
+        <FieldLabel>Opciones obligatorias</FieldLabel>
+        <div className="grid grid-cols-2 gap-2">
+          <Checkbox checked={exeRate} onChange={setExeRate} label="exe rate 10%" hint="Obligatoria" />
+          <Checkbox checked={dmg2pct} onChange={setDmg2pct} label="dmg +2%" hint="Obligatoria" />
+        </div>
       </div>
 
       <div>
-        <FieldLabel>
-          Opciones extra (máximo 2)
-          <span className="ml-2 text-[10px] normal-case tracking-normal text-text-muted">
-            {[dmg2pct, speed7, dmgLvl20].filter(Boolean).length}/2 elegidas
-          </span>
-        </FieldLabel>
+        <FieldLabel>Tercera opción</FieldLabel>
         <div className="grid grid-cols-3 gap-2">
-          {([
-            { label: "dmg +2%", value: dmg2pct, setter: setDmg2pct },
-            { label: "speed +7", value: speed7, setter: setSpeed7 },
-            { label: "dmg lvl/20", value: dmgLvl20, setter: setDmgLvl20 },
-          ] as const).map((opt) => {
-            const totalExtras = [dmg2pct, speed7, dmgLvl20].filter(Boolean).length;
-            // Si ya hay 2 extras y este no está tildado → bloqueado
-            const bloqueado = !opt.value && totalExtras >= 2;
-            return (
-              <button
-                key={opt.label}
-                type="button"
-                onClick={() => !bloqueado && opt.setter(!opt.value)}
-                disabled={bloqueado}
-                className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
-                  opt.value
-                    ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
-                    : bloqueado
-                      ? "bg-bg-card border-border-base text-text-muted opacity-40 cursor-not-allowed"
-                      : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong cursor-pointer"
-                }`}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
+          <button
+            type="button"
+            onClick={() => { setSpeed7(false); setDmgLvl20(false); }}
+            className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+              !speed7 && !dmgLvl20
+                ? "bg-bg-card-hover border-border-strong text-text-primary"
+                : "bg-bg-card border-border-base text-text-muted hover:border-border-strong"
+            }`}
+          >
+            Ninguna
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSpeed7(true); setDmgLvl20(false); }}
+            className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+              speed7
+                ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
+                : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong"
+            }`}
+          >
+            speed +7
+          </button>
+          <button
+            type="button"
+            onClick={() => { setDmgLvl20(true); setSpeed7(false); }}
+            className={`px-3 py-2.5 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+              dmgLvl20
+                ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
+                : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong"
+            }`}
+          >
+            dmg lvl/20
+          </button>
         </div>
-        {exeRate && [dmg2pct, speed7, dmgLvl20].filter(Boolean).length === 0 && (
-          <p className="text-[10px] font-body text-text-muted mt-1.5">
-            Con solo exe rate no se compra. Agregá al menos una opción extra.
-          </p>
-        )}
-        {exeRate && [dmg2pct, speed7, dmgLvl20].filter(Boolean).length === 1 && (
+        {precioVentaCalc === null && exeRate && dmg2pct && (
           <p className="text-[10px] font-body text-neon-orange/80 mt-1.5">
-            Con 2 opciones útiles el precio se paga al 30%.
+            Esta combinación no se compra con las reglas actuales (revisá tipo, luck, skill o sockets).
           </p>
         )}
       </div>
@@ -690,13 +690,14 @@ function FormAla({ onSaved, onClose, editItem }: { onClose: () => void; onSaved:
 // COMPONENTE: SocketSelector
 // =====================================================
 function SocketSelector({
-  value, onChange, disabled,
+  value, onChange, disabled, min = 0,
 }: {
-  value: number; onChange: (n: number) => void; disabled: boolean;
+  value: number; onChange: (n: number) => void; disabled: boolean; min?: number;
 }) {
+  const opciones = [0, 1, 2, 3].filter((n) => n >= min);
   return (
     <div className={`inline-flex bg-bg-card border border-border-base rounded p-0.5 gap-0.5 w-full ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
-      {[0, 1, 2, 3].map((n) => (
+      {opciones.map((n) => (
         <button
           key={n}
           type="button"
