@@ -390,23 +390,26 @@ export function precioVentaGema(tipo: GemaTipo | null): number | null {
 // =====================================================
 // JOYERÍA (anillos y pendientes)
 // =====================================================
-// Categoría nueva. Dos tipos: anillo y pendiente.
+// Dos tipos: anillo y pendiente. Cada uno con nombres específicos (desplegable).
 //
-// ANILLOS:
+// ANILLOS (Ring of ...):
 //   - Requisito: HP + DD + REF (sin eso → no se compra).
 //   - Variable: Life Recovery % (1 a 7).
-//   - Escala de compra: 4.000 (n0, 1%) a 32.000 (n15, 7%). 20% más baratos que pendientes.
+//   - Nombres: poison, ice, earth, fire, wind, magic.
+//   - Variantes BARATAS (-30%): poison, fire, magic.
 //
-// PENDIENTES:
+// PENDIENTES (Pendant of ...):
 //   - Requisitos: exe rate 10% + dmg 2% (obligatorias) Y opción variable = Life Recovery.
-//     (Si la opción variable es mana o AG en vez de Life Recovery → no se compra).
 //   - Tercera opción de arma (speed7/dmglvl20): requisito de calidad, no afecta precio.
 //   - Variable: Life Recovery % (1 a 7).
-//   - Escala de compra: 5.000 (n0, 1%) a 40.000 (n15, 7%).
+//   - Nombres: lighting, ice, water, fire, wind, ability.
+//   - Variantes BARATAS (-30%): water, fire, ability.
 //
-// Modelo de precio (Variante B - "% domina fuerte"):
-//   El % es el factor de rareza dominante (escala cuadrática), el nivel ajusta
-//   dentro de la banda de cada %.
+// Modelo de precio (Versión 2 - "equilibrada con saltos"):
+//   - Rango 5.000 (n0,1%) a 30.000 (n15,7%) para la variante CARA.
+//   - % aporta 55% del rango (curva exp 1.4), nivel aporta 45%.
+//   - Nivel: subida lineal suave + saltos extra al tocar +7 y +15.
+//   - Variante barata: -30% sobre el precio final.
 //
 // Venta = compra × 4.
 
@@ -422,21 +425,76 @@ export type OpcionVariablePendiente = "life" | "mana" | "ag";
 
 export const JOYA_MULT_VENTA = 4;
 
+// Nombres de joyas
+export type NombreAnillo = "poison" | "ice" | "earth" | "fire" | "wind" | "magic";
+export type NombrePendiente = "lighting" | "ice" | "water" | "fire" | "wind" | "ability";
+export type NombreJoya = NombreAnillo | NombrePendiente;
+
+export const ANILLO_NOMBRES: { value: NombreAnillo; label: string }[] = [
+  { value: "poison", label: "Ring of Poison" },
+  { value: "ice", label: "Ring of Ice" },
+  { value: "earth", label: "Ring of Earth" },
+  { value: "fire", label: "Ring of Fire" },
+  { value: "wind", label: "Ring of Wind" },
+  { value: "magic", label: "Ring of Magic" },
+];
+
+export const PENDIENTE_NOMBRES: { value: NombrePendiente; label: string }[] = [
+  { value: "lighting", label: "Pendant of Lighting" },
+  { value: "ice", label: "Pendant of Ice" },
+  { value: "water", label: "Pendant of Water" },
+  { value: "fire", label: "Pendant of Fire" },
+  { value: "wind", label: "Pendant of Wind" },
+  { value: "ability", label: "Pendant of Ability" },
+];
+
+/** Label completo de una joya según tipo + nombre. */
+export function joyaLabel(tipo: TipoJoya, nombre: string | null): string {
+  if (!nombre) return JOYA_LABELS[tipo];
+  const arr = tipo === "anillo" ? ANILLO_NOMBRES : PENDIENTE_NOMBRES;
+  const found = arr.find((n) => n.value === nombre);
+  return found ? found.label : JOYA_LABELS[tipo];
+}
+
+/** Variantes baratas (-30%) por tipo. */
+const ANILLO_BARATOS: NombreAnillo[] = ["poison", "fire", "magic"];
+const PENDIENTE_BARATOS: NombrePendiente[] = ["water", "fire", "ability"];
+
+export function esJoyaBarata(tipo: TipoJoya, nombre: string | null): boolean {
+  if (!nombre) return false;
+  if (tipo === "anillo") return ANILLO_BARATOS.includes(nombre as NombreAnillo);
+  return PENDIENTE_BARATOS.includes(nombre as NombrePendiente);
+}
+
 /**
- * Precio base de joyería según nivel (0-15) y Life Recovery % (1-7).
- * Variante B: % domina fuerte (curva cuadrática), nivel ajusta dentro de la banda.
+ * Factor de nivel (0..1): subida lineal suave + saltos extra en +7 y +15.
  */
-function precioJoyaBase(nivel: number, pct: number, min: number, max: number): number {
-  const fPct = Math.pow((pct - 1) / 6, 2);   // 0..1 con curva cuadrática
-  const fNivel = Math.max(0, Math.min(15, nivel)) / 15;
-  const rango = max - min;
-  const anchoBanda = rango / 7;
-  const pisoBanda = min + fPct * (rango - anchoBanda);
-  return Math.round(pisoBanda + fNivel * anchoBanda);
+function factorNivelJoya(nivel: number): number {
+  const n = Math.max(0, Math.min(15, nivel));
+  const base = (n / 15) * 0.65;       // lineal suave (65% del peso del nivel)
+  let bonus = 0;
+  if (n >= 7) bonus += 0.15;          // salto al llegar a +7
+  if (n >= 15) bonus += 0.20;         // salto mayor al llegar a +15
+  return Math.min(1, base + bonus);
+}
+
+/**
+ * Precio base de joyería (variante CARA), rango 5.000 - 30.000.
+ * % aporta 55% (curva exp 1.4), nivel aporta 45% (con saltos).
+ */
+function precioJoyaBase(nivel: number, pct: number): number {
+  const MIN = 5000, MAX = 30000;
+  const fPct = Math.pow((pct - 1) / 6, 1.4);
+  const fNivel = factorNivelJoya(nivel);
+  const rango = MAX - MIN;
+  const aportePct = fPct * rango * 0.55;
+  const aporteNivel = fNivel * rango * 0.45;
+  return Math.round(Math.min(MAX, MIN + aportePct + aporteNivel));
 }
 
 export interface JoyaInput {
   tipo: TipoJoya | null;
+  nombre?: string | null;     // nombre de la joya (para -30% en variantes baratas)
   nivel: number;              // 0-15
   lifeRecovery: number;       // 1-7 (% de Life Recovery)
   // Anillo:
@@ -449,20 +507,23 @@ export interface JoyaInput {
 
 /** Precio de COMPRA de una joya. null si no se compra. */
 export function precioJoya(input: JoyaInput): number | null {
-  const { tipo, nivel, lifeRecovery } = input;
+  const { tipo, nivel, lifeRecovery, nombre } = input;
   if (!tipo) return null;
   if (lifeRecovery < 1 || lifeRecovery > 7) return null;
 
   if (tipo === "anillo") {
-    // Requisito: HP + DD + REF
     if (!input.hpDdRef) return null;
-    return precioJoyaBase(nivel, lifeRecovery, 4000, 32000);
   } else {
-    // pendiente: requisitos exe rate + 2% + opción variable Life Recovery
     if (!input.exeRate || !input.dmg2pct) return null;
     if (input.opcionVariable !== "life") return null;
-    return precioJoyaBase(nivel, lifeRecovery, 5000, 40000);
   }
+
+  let precio = precioJoyaBase(nivel, lifeRecovery);
+  // Variante barata: -30%
+  if (esJoyaBarata(tipo, nombre ?? null)) {
+    precio = Math.round(precio * 0.7);
+  }
+  return precio;
 }
 
 /** Precio de VENTA de una joya (compra × 4). */

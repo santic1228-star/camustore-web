@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FieldLabel, TextInput, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
+import { FieldLabel, Select, Checkbox } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
-import { precioJoya, JoyaInput, TipoJoya, OpcionVariablePendiente } from "@/lib/precios";
+import {
+  precioJoya, JoyaInput, TipoJoya, OpcionVariablePendiente,
+  ANILLO_NOMBRES, PENDIENTE_NOMBRES, joyaLabel, esJoyaBarata,
+} from "@/lib/precios";
 
 export default function SeccionJoyeria() {
   const [tipo, setTipo] = useState<"" | TipoJoya>("");
@@ -21,24 +24,32 @@ export default function SeccionJoyeria() {
   const precio = useMemo(() => {
     const input: JoyaInput = {
       tipo: tipo || null,
+      nombre: nombre || null,
       nivel: Number(nivel) || 0,
       lifeRecovery,
       hpDdRef,
       exeRate, dmg2pct, opcionVariable,
     };
     return precioJoya(input);
-  }, [tipo, nivel, lifeRecovery, hpDdRef, exeRate, dmg2pct, opcionVariable]);
+  }, [tipo, nombre, nivel, lifeRecovery, hpDdRef, exeRate, dmg2pct, opcionVariable]);
+
+  const nombresDisponibles = tipo === "anillo" ? ANILLO_NOMBRES : tipo === "pendiente" ? PENDIENTE_NOMBRES : [];
+  const esBarata = tipo && nombre ? esJoyaBarata(tipo, nombre) : false;
 
   const descripcion = [
-    `• Joya: ${tipo === "anillo" ? "Anillo" : tipo === "pendiente" ? "Pendiente" : "(sin tipo)"}${nombre ? ` "${nombre}"` : ""}`,
+    `• ${tipo ? joyaLabel(tipo, nombre || null) : "(sin tipo)"}`,
     `• Nivel: ${nivel}`,
     `• Life Recovery: ${lifeRecovery}%`,
-    tipo === "pendiente" ? `• Opciones: exe rate, dmg 2%${tercera ? `, ${tercera === "speed7" ? "speed +7" : "dmg lvl/20"}` : ""}` : `• HP+DD+REF: ${hpDdRef ? "Sí" : "No"}`,
+    tipo === "pendiente"
+      ? `• Opciones: exe rate, dmg 2%${tercera ? `, ${tercera === "speed7" ? "speed +7" : "dmg lvl/20"}` : ""}`
+      : `• HP+DD+REF: ${hpDdRef ? "Sí" : "No"}`,
   ].join("\n");
 
   let motivoNoPrecio: string | undefined;
   if (!tipo) {
     motivoNoPrecio = "Elegí si es anillo o pendiente.";
+  } else if (!nombre) {
+    motivoNoPrecio = "Elegí el nombre de la joya.";
   } else if (tipo === "anillo") {
     if (!hpDdRef) motivoNoPrecio = "Los anillos se compran solo con HP + DD + REF.";
   } else {
@@ -54,7 +65,7 @@ export default function SeccionJoyeria() {
             <FieldLabel>Tipo de joya</FieldLabel>
             <Select<TipoJoya>
               value={tipo}
-              onChange={(v) => setTipo(v)}
+              onChange={(v) => { setTipo(v); setNombre(""); }}
               options={[
                 { value: "anillo", label: "Anillo" },
                 { value: "pendiente", label: "Pendiente" },
@@ -63,23 +74,34 @@ export default function SeccionJoyeria() {
             />
           </div>
           <div>
-            <FieldLabel>Nombre (opcional)</FieldLabel>
-            <TextInput value={nombre} onChange={setNombre} placeholder="ej. Ring of Fire" />
+            <FieldLabel>Nombre</FieldLabel>
+            <Select<string>
+              value={nombre}
+              onChange={(v) => setNombre(v)}
+              options={nombresDisponibles}
+              placeholder={tipo ? "Elegí nombre" : "Primero el tipo"}
+            />
+            {esBarata && (
+              <p className="text-[10px] font-body text-neon-orange/80 mt-1.5">
+                Variante de menor valor (-30%).
+              </p>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <FieldLabel>Nivel (0 a 15)</FieldLabel>
-            <TextInput value={nivel} onChange={setNivel} type="number" min={0} max={15} />
+            <input
+              type="number" min={0} max={15} value={nivel}
+              onChange={(e) => setNivel(e.target.value)}
+              className="w-full bg-bg-card border border-border-base focus:border-neon-cyan rounded px-3 py-2.5 font-numeric text-text-primary outline-none transition-colors"
+            />
           </div>
           <div>
             <FieldLabel>Life Recovery: {lifeRecovery}%</FieldLabel>
             <input
-              type="range"
-              min={1}
-              max={7}
-              value={lifeRecovery}
+              type="range" min={1} max={7} value={lifeRecovery}
               onChange={(e) => setLifeRecovery(Number(e.target.value))}
               className="w-full accent-neon-cyan mt-3"
             />
@@ -89,7 +111,6 @@ export default function SeccionJoyeria() {
           </div>
         </div>
 
-        {/* Campos según tipo */}
         {tipo === "anillo" && (
           <div>
             <FieldLabel>Opción obligatoria</FieldLabel>
@@ -164,7 +185,7 @@ export default function SeccionJoyeria() {
       </div>
 
       <div className="lg:sticky lg:top-24 lg:self-start">
-        <PriceResult precio={precio} descripcion={descripcion} motivoNoPrecio={motivoNoPrecio} categoria="joya" nombre={nombre || (tipo || "joya")} />
+        <PriceResult precio={precio} descripcion={descripcion} motivoNoPrecio={motivoNoPrecio} categoria="joya" nombre={tipo ? joyaLabel(tipo, nombre || null) : "joya"} />
       </div>
     </div>
   );

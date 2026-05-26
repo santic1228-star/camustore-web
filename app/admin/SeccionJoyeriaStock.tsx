@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { FieldLabel, TextInput, Select, Checkbox } from "@/components/ui/FormField";
-import { precioJoya, precioVentaJoya, JOYA_LABELS, TipoJoya, OpcionVariablePendiente } from "@/lib/precios";
+import { precioJoya, precioVentaJoya, JOYA_LABELS, TipoJoya, OpcionVariablePendiente, ANILLO_NOMBRES, PENDIENTE_NOMBRES, joyaLabel, esJoyaBarata } from "@/lib/precios";
 import type { EstadoItem, OpcionVariableJoya } from "@/lib/database.types";
 
 interface Joya {
@@ -58,7 +58,7 @@ export default function SeccionJoyeriaStock() {
     if (filtroEstado !== "todos" && j.estado !== filtroEstado) return false;
     if (query.trim()) {
       const q = query.toLowerCase();
-      const h = [JOYA_LABELS[j.tipo], j.nombre, j.raza, j.dueno, j.estado].filter(Boolean).join(" ").toLowerCase();
+      const h = [joyaLabel(j.tipo, j.nombre), j.raza, j.dueno, j.estado].filter(Boolean).join(" ").toLowerCase();
       if (!h.includes(q)) return false;
     }
     return true;
@@ -120,7 +120,7 @@ export default function SeccionJoyeriaStock() {
               {visibles.map((j) => (
                 <tr key={j.id} className="border-b border-border-base/40 font-body hover:bg-bg-card/30">
                   <td className="py-2 pr-3 text-text-primary">
-                    {JOYA_LABELS[j.tipo]}{j.nombre ? <span className="text-text-muted"> · {j.nombre}</span> : ""}
+                    {joyaLabel(j.tipo, j.nombre)}
                   </td>
                   <td className="py-2 pr-3 text-right font-numeric text-text-secondary">+{j.nivel}</td>
                   <td className="py-2 pr-3 text-right font-numeric text-neon-cyan">{j.life_recovery}%</td>
@@ -221,6 +221,7 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
 
   const input = {
     tipo: tipo || null,
+    nombre: nombre || null,
     nivel: Number(nivel) || 0,
     lifeRecovery,
     hpDdRef,
@@ -231,11 +232,11 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
   const sePuede = compra !== null;
 
   async function guardar() {
-    if (!tipo || compra === null || venta === null) return;
+    if (!tipo || !nombre || compra === null || venta === null) return;
     setSaving(true);
     const { error } = await supabase.from("joyeria_stock").insert({
       tipo,
-      nombre: nombre.trim() || null,
+      nombre: nombre || null,
       nivel: Number(nivel) || 0,
       life_recovery: lifeRecovery,
       hp_dd_ref: tipo === "anillo" ? hpDdRef : false,
@@ -268,7 +269,7 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
           <FieldLabel>Tipo</FieldLabel>
           <Select<TipoJoya>
             value={tipo}
-            onChange={(v) => setTipo(v)}
+            onChange={(v) => { setTipo(v); setNombre(""); }}
             options={[
               { value: "anillo", label: "Anillo" },
               { value: "pendiente", label: "Pendiente" },
@@ -278,7 +279,12 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
         </div>
         <div>
           <FieldLabel>Nombre</FieldLabel>
-          <TextInput value={nombre} onChange={setNombre} placeholder="opcional" />
+          <Select<string>
+            value={nombre}
+            onChange={(v) => setNombre(v)}
+            options={tipo === "anillo" ? ANILLO_NOMBRES : tipo === "pendiente" ? PENDIENTE_NOMBRES : []}
+            placeholder={tipo ? "Elegí" : "Tipo primero"}
+          />
         </div>
         <div>
           <FieldLabel>Nivel (0-15)</FieldLabel>
@@ -334,7 +340,7 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
         </div>
         <button
           onClick={guardar}
-          disabled={!tipo || !sePuede || saving}
+          disabled={!tipo || !nombre || !sePuede || saving}
           className="btn-primary px-4 py-2.5 rounded font-body text-xs uppercase tracking-widest disabled:opacity-40"
         >
           {saving ? "..." : "Agregar"}
