@@ -10,6 +10,7 @@ export default function Carrito() {
 
   const compras = lineas.filter((l) => l.tipo === "compra");
   const ventas = lineas.filter((l) => l.tipo === "venta");
+  const neto = totalCompra - totalVenta;  // >0 cliente paga, <0 vos pagás
 
   function armarMensaje(): string {
     const partes: string[] = [`${CONFIG.WHATSAPP_GREETING}`, ""];
@@ -31,6 +32,19 @@ export default function Carrito() {
         partes.push(`• ${l.cantidad}x ${l.titulo}${l.detalle ? ` (${l.detalle})` : ""} — ${sub} ${CONFIG.CURRENCY}`);
       }
       partes.push(`Subtotal venta: ${totalVenta.toLocaleString("es-AR")} ${CONFIG.CURRENCY}`);
+      partes.push("");
+    }
+
+    // Neto (solo si hay ambos lados)
+    if (compras.length > 0 && ventas.length > 0) {
+      partes.push("──────────");
+      if (neto > 0) {
+        partes.push(`*Saldo: pago ${neto.toLocaleString("es-AR")} ${CONFIG.CURRENCY}* (a favor de la tienda)`);
+      } else if (neto < 0) {
+        partes.push(`*Saldo: me pagan ${Math.abs(neto).toLocaleString("es-AR")} ${CONFIG.CURRENCY}*`);
+      } else {
+        partes.push(`*Saldo: quedamos a mano (0)*`);
+      }
       partes.push("");
     }
 
@@ -92,6 +106,33 @@ export default function Carrito() {
                       <span className="font-numeric font-bold text-neon-orange">{totalVenta.toLocaleString("es-AR")} {CONFIG.CURRENCY}</span>
                     </div>
                   )}
+
+                  {/* Neto destacado */}
+                  {totalCompra > 0 && totalVenta > 0 && (
+                    <div className="border-t border-border-base pt-3">
+                      {neto === 0 ? (
+                        <div className="flex justify-between items-center">
+                          <span className="font-body text-sm uppercase tracking-wider text-text-secondary">Saldo</span>
+                          <span className="font-numeric font-bold text-lg text-text-primary">Quedan a mano (0)</span>
+                        </div>
+                      ) : neto > 0 ? (
+                        <div className="text-center">
+                          <p className="font-body text-[11px] uppercase tracking-widest text-text-muted mb-1">El cliente paga</p>
+                          <p className="font-numeric font-black text-3xl neon-text-cyan leading-none">
+                            {neto.toLocaleString("es-AR")} <span className="text-base">{CONFIG.CURRENCY}</span>
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <p className="font-body text-[11px] uppercase tracking-widest text-text-muted mb-1">Le pagás al cliente</p>
+                          <p className="font-numeric font-black text-3xl neon-text-orange leading-none">
+                            {Math.abs(neto).toLocaleString("es-AR")} <span className="text-base">{CONFIG.CURRENCY}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <a
                     href={whatsappLink(armarMensaje())}
                     target="_blank"
