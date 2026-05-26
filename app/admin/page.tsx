@@ -5,6 +5,7 @@ import AdminGate from "@/components/AdminGate";
 import AdminLayout, { AdminTab } from "@/components/AdminLayout";
 import SeccionCatalogo from "./SeccionCatalogo";
 import SeccionStock from "./SeccionStock";
+import SeccionGemasStock from "./SeccionGemasStock";
 import SeccionAnalytics from "./SeccionAnalytics";
 
 export default function AdminPage() {
@@ -16,6 +17,7 @@ export default function AdminPage() {
         <AdminLayout user={user} activeTab={tab} onTabChange={setTab}>
           {tab === "catalogo" && <SeccionCatalogo />}
           {tab === "stock" && <SeccionStock />}
+          {tab === "gemas" && <SeccionGemasStock />}
           {tab === "analytics" && <SeccionAnalytics />}
           {tab === "pendientes" && (
             <div className="text-center py-16">

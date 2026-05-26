@@ -11,7 +11,12 @@ export type EstadoConsignacion = "pendiente" | "aprobado" | "rechazado" | "vendi
 export type TipoJewel =
   | "chaos" | "creation" | "soul" | "bless" | "harmony" | "life"
   | "socket" | "luck_jewel" | "skill_jewel" | "additional";
-export type TipoSeed = "max_life" | "damage_reduction";
+export type TipoSeed = "max_life" | "damage_reduction" | "penta" | "exc_dmg_rate" | "crit_dmg_rate";
+
+export type TipoGema =
+  | "gema_item_s3" | "gema_alas_s3" | "gema_seed" | "gema_item_380" | "gema_item_400"
+  | "gema_gp" | "ring_wheel" | "item_acc" | "purple_box" | "chaos_box"
+  | "kundun_box_5" | "kundun_box_4";
 
 export interface ItemPublico {
   id: string;
@@ -50,6 +55,14 @@ export interface SeedPublico {
   id: string;
   tipo: TipoSeed;
   ensamblada_penta: boolean;
+  cantidad: number;
+  estado: EstadoItem;
+  created_at: string;
+}
+
+export interface GemaPublico {
+  id: string;
+  tipo: TipoGema;
   cantidad: number;
   estado: EstadoItem;
   created_at: string;
@@ -150,6 +163,17 @@ export interface Database {
         };
         Update: Partial<SeedPublico> & { dueno?: string | null };
       };
+      gemas_stock: {
+        Row: GemaPublico & { dueno: string | null; updated_at: string };
+        Insert: {
+          id?: string;
+          tipo: TipoGema;
+          cantidad?: number;
+          dueno?: string | null;
+          estado?: EstadoItem;
+        };
+        Update: Partial<GemaPublico> & { dueno?: string | null };
+      };
       admins: {
         Row: { email: string; nombre: string | null; created_at: string };
         Insert: { email: string; nombre?: string | null };
@@ -167,6 +191,7 @@ export interface Database {
       items_publicos: { Row: ItemPublico };
       jewels_publicos: { Row: JewelPublico };
       seeds_publicos: { Row: SeedPublico };
+      gemas_publicos: { Row: GemaPublico };
     };
   };
 }

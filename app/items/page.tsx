@@ -7,13 +7,14 @@ import ItemCard from "@/components/ItemCard";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import JewelCard from "@/components/JewelCard";
 import SeedCard from "@/components/SeedCard";
+import GemaCard from "@/components/GemaCard";
 import { supabase } from "@/lib/supabase";
 import { getRaza } from "@/lib/razas";
-import { JEWEL_PRECIOS, SEED_LABELS } from "@/lib/precios";
+import { JEWEL_PRECIOS, SEED_LABELS, GEMA_PRECIOS, GEMA_MULT_VENTA } from "@/lib/precios";
 import type { Item } from "@/lib/types";
-import type { ItemPublico, JewelPublico, SeedPublico, TipoJewel, TipoSeed } from "@/lib/database.types";
+import type { ItemPublico, JewelPublico, SeedPublico, GemaPublico, TipoJewel, TipoSeed, TipoGema } from "@/lib/database.types";
 
-type Tab = "items" | "consumibles";
+type Tab = "items" | "consumibles" | "gemas";
 
 // =====================================================
 // Adaptador de ItemPublico → Item (formato que ItemCard espera)
@@ -69,7 +70,7 @@ function searchItems(items: Item[], query: string): Item[] {
 // =====================================================
 // Agrupación de jewels/seeds por tipo
 // =====================================================
-import { esJewelEspecial, JEWEL_MULT_VENTA } from "@/lib/precios";
+import { esJewelEspecial, JEWEL_MULT_VENTA, precioVentaSeed } from "@/lib/precios";
 
 interface JewelGroup {
   tipo: TipoJewel;
@@ -82,6 +83,11 @@ interface SeedGroup {
   ensamblada_penta: boolean;
   totalCantidad: number;
   precioUnidad: number;
+}
+interface GemaGroup {
+  tipo: TipoGema;
+  totalCantidad: number;
+  precioUnitario: number;
 }
 
 function agruparJewels(stocks: JewelPublico[]): JewelGroup[] {
@@ -107,7 +113,6 @@ function agruparJewels(stocks: JewelPublico[]): JewelGroup[] {
 }
 
 function agruparSeeds(stocks: SeedPublico[]): SeedGroup[] {
-  // Agrupo por tipo + ensamblada_penta (son productos distintos comercialmente)
   const map = new Map<string, SeedGroup>();
   for (const s of stocks) {
     const key = `${s.tipo}::${s.ensamblada_penta}`;
@@ -115,13 +120,30 @@ function agruparSeeds(stocks: SeedPublico[]): SeedGroup[] {
     if (ex) {
       ex.totalCantidad += s.cantidad;
     } else {
-      const precioBase = s.tipo === "max_life" ? 35000 : 40000;
-      const precioCompra = s.ensamblada_penta ? precioBase + 5000 : precioBase;
+      const venta = precioVentaSeed(s.tipo, s.ensamblada_penta) ?? 0;
       map.set(key, {
         tipo: s.tipo,
         ensamblada_penta: s.ensamblada_penta,
         totalCantidad: s.cantidad,
-        precioUnidad: Math.round(precioCompra * 3.5),  // ×3.5 venta
+        precioUnidad: venta,
+      });
+    }
+  }
+  return Array.from(map.values()).filter((g) => g.totalCantidad > 0);
+}
+
+function agruparGemas(stocks: GemaPublico[]): GemaGroup[] {
+  const map = new Map<TipoGema, GemaGroup>();
+  for (const s of stocks) {
+    if (s.cantidad <= 0) continue;
+    const ex = map.get(s.tipo);
+    if (ex) {
+      ex.totalCantidad += s.cantidad;
+    } else {
+      map.set(s.tipo, {
+        tipo: s.tipo,
+        totalCantidad: s.cantidad,
+        precioUnitario: Math.round(GEMA_PRECIOS[s.tipo] * GEMA_MULT_VENTA),
       });
     }
   }
@@ -139,6 +161,7 @@ export default function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [jewels, setJewels] = useState<JewelGroup[]>([]);
   const [seeds, setSeeds] = useState<SeedGroup[]>([]);
+  const [gemas, setGemas] = useState<GemaGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -146,10 +169,11 @@ export default function ItemsPage() {
     async function cargar() {
       try {
         setLoading(true);
-        const [resItems, resJewels, resSeeds] = await Promise.all([
+        const [resItems, resJewels, resSeeds, resGemas] = await Promise.all([
           supabase.from("items_publicos").select("*").order("created_at", { ascending: false }),
           supabase.from("jewels_publicos").select("*"),
           supabase.from("seeds_publicos").select("*"),
+          supabase.from("gemas_publicos").select("*"),
         ]);
 
         if (resItems.error) throw resItems.error;
@@ -157,6 +181,7 @@ export default function ItemsPage() {
 
         if (resJewels.data) setJewels(agruparJewels(resJewels.data as JewelPublico[]));
         if (resSeeds.data) setSeeds(agruparSeeds(resSeeds.data as SeedPublico[]));
+        if (resGemas.data) setGemas(agruparGemas(resGemas.data as GemaPublico[]));
       } catch (err) {
         console.error("Error cargando catálogo:", err);
         setError("No pudimos cargar el catálogo. Probá refrescando.");
@@ -215,6 +240,16 @@ export default function ItemsPage() {
               }`}
             >
               💎🌱 Jewels & Seeds <span className="opacity-60">({totalConsumibles})</span>
+            </button>
+            <button
+              onClick={() => setTab("gemas")}
+              className={`px-4 py-2.5 font-body text-xs sm:text-sm uppercase tracking-widest border-b-2 transition-colors ${
+                tab === "gemas"
+                  ? "border-neon-cyan text-neon-cyan"
+                  : "border-transparent text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              🔮 Gemas y otros <span className="opacity-60">({gemas.length})</span>
             </button>
           </div>
 
@@ -319,6 +354,24 @@ export default function ItemsPage() {
                   </div>
                 )}
               </section>
+            </div>
+          )}
+
+          {/* TAB: GEMAS */}
+          {!loading && !error && tab === "gemas" && (
+            <div className="animate-fade-in">
+              {gemas.length === 0 ? (
+                <div className="text-center py-16 font-body text-text-secondary">
+                  <p className="text-2xl mb-2">🔮</p>
+                  <p>Todavía no hay gemas ni otros items cargados.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {gemas.map((g) => (
+                    <GemaCard key={g.tipo} group={g} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
