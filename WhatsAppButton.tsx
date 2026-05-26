@@ -1,0 +1,127 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { FieldLabel, TextInput, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
+import PriceResult from "@/components/PriceResult";
+import { precioArmadura, ArmaduraInput } from "@/lib/precios";
+
+export default function SeccionArmaduras() {
+  const [nombre, setNombre] = useState("");
+  const [parte, setParte] = useState("");
+  const [nivel, setNivel] = useState("10");
+  const [hpDdRef, setHpDdRef] = useState(false);
+  const [tipo, setTipo] = useState<"" | "s3" | "380" | "400">("");
+  const [socket, setSocket] = useState<number>(2);  // mínimo 2 para 400
+  const [luck, setLuck] = useState(true);
+
+  const precio = useMemo(() => {
+    const input: ArmaduraInput = {
+      hpDdRef,
+      nivel: Number(nivel) || 0,
+      tipo: tipo || null,
+      socket: tipo === "400" ? socket : null,
+      luck,
+    };
+    return precioArmadura(input);
+  }, [hpDdRef, nivel, tipo, socket, luck]);
+
+  const descripcion = [
+    `• Armadura: ${nombre || "(sin nombre)"} ${parte || ""}`.trim(),
+    `• Nivel: ${nivel}`,
+    `• Tipo: ${tipo || "—"}${tipo === "400" && socket > 0 ? ` · ${socket} socket${socket === 1 ? "" : "s"}` : ""}`,
+    `• HP + DD + REF: ${hpDdRef ? "Sí" : "No"} · Luck: ${luck ? "Sí" : "No"}`,
+  ].join("\n");
+
+  const motivoNoPrecio = !tipo
+    ? "Elegí el tipo del item (s3, 380 o 400)."
+    : !hpDdRef
+    ? "Las armaduras se compran solo si tienen HP, DD y REF (las 3 opciones)."
+    : (tipo === "s3" || tipo === "380") && !luck
+    ? "Los items s3 y 380 se compran solo con luck."
+    : tipo === "400" && socket < 2
+    ? "Los items 400 se compran solo con 2 o 3 sockets."
+    : undefined;
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-6">
+      {/* Formulario */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Nombre del item</FieldLabel>
+            <TextInput value={nombre} onChange={setNombre} placeholder="queen, titan..." />
+          </div>
+          <div>
+            <FieldLabel>Parte</FieldLabel>
+            <TextInput value={parte} onChange={setParte} placeholder="helm, armor..." />
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>Nivel (0 a 15)</FieldLabel>
+          <TextInput value={nivel} onChange={setNivel} type="number" min={0} max={15} />
+        </div>
+
+        <div>
+          <FieldLabel>Opciones</FieldLabel>
+          <Checkbox
+            checked={hpDdRef}
+            onChange={setHpDdRef}
+            label="HP + DD + REF"
+            hint="Las 3 opciones obligatorias"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Tipo</FieldLabel>
+            <Select<"s3" | "380" | "400">
+              value={tipo}
+              onChange={(v) => { setTipo(v); if (v === "400" && socket < 2) setSocket(2); }}
+              options={[
+                { value: "s3", label: "s3" },
+                { value: "380", label: "380" },
+                { value: "400", label: "400" },
+              ]}
+              placeholder="Elegí tipo"
+            />
+          </div>
+          <div>
+            <FieldLabel>Sockets {tipo === "400" ? "· mín. 2" : "· solo 400"}</FieldLabel>
+            <div className={`inline-flex bg-bg-card border border-border-base rounded p-0.5 gap-0.5 w-full ${tipo !== "400" ? "opacity-40 pointer-events-none" : ""}`}>
+              {[2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setSocket(n)}
+                  className={`flex-1 px-2 py-1.5 rounded font-numeric text-sm font-bold transition-all ${
+                    socket === n
+                      ? "bg-neon-cyan text-bg-deep"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {tipo === "400" && socket > 0 && (
+              <p className="text-[10px] font-body text-luck-gold mt-1.5 uppercase tracking-wider">
+                +{(socket * 600).toLocaleString("es-AR")} WC por sockets
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>¿Tiene Luck?</FieldLabel>
+          <PillToggle value={luck} onChange={setLuck} />
+        </div>
+      </div>
+
+      {/* Resultado */}
+      <div className="lg:sticky lg:top-24 lg:self-start">
+        <PriceResult precio={precio} descripcion={descripcion} motivoNoPrecio={motivoNoPrecio} categoria="armadura" nombre={nombre || parte || "armadura"} />
+      </div>
+    </div>
+  );
+}
