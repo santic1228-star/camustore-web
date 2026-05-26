@@ -311,7 +311,7 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
             <FieldLabel>Opción variable</FieldLabel>
             <Select<OpcionVariablePendiente>
               value={opcionVariable}
-              onChange={(v) => setOpcionVariable(v)}
+              onChange={(v) => { if (v) setOpcionVariable(v); }}
               options={[
                 { value: "life", label: "Life Recovery" },
                 { value: "mana", label: "Mana (no se compra)" },
