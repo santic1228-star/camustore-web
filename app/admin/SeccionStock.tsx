@@ -29,7 +29,11 @@ interface Seed {
 // =====================================================
 // Cálculos de precios
 // =====================================================
-import { esJewelEspecial, JEWEL_MULT_VENTA } from "@/lib/precios";
+import {
+  esJewelEspecial, JEWEL_MULT_VENTA,
+  precioSeed as precioSeedLib, precioVentaSeed as precioVentaSeedLib,
+  SEED_ACEPTA_PENTA,
+} from "@/lib/precios";
 
 /**
  * Para un Jewel:
@@ -45,13 +49,15 @@ function precioVentaJewel(j: { tipo: TipoJewel; bundles: number; cantidad: numbe
   return Math.round(precioCompraJewel(j) * JEWEL_MULT_VENTA[j.tipo]);
 }
 
+// Seeds: usan las funciones de lib/precios (que tienen las reglas nuevas,
+// incluyendo Penta, Exc Dmg Rate y Crit Dmg Rate con venta hardcodeada).
 function precioCompraSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number): number {
-  const base = tipo === "max_life" ? 35000 : 40000;
-  const unit = ensamblada_penta ? base + 5000 : base;
+  const unit = precioSeedLib(tipo, ensamblada_penta) ?? 0;
   return unit * cantidad;
 }
 function precioVentaSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number): number {
-  return Math.round(precioCompraSeed(tipo, ensamblada_penta, cantidad) * 3.5);
+  const unit = precioVentaSeedLib(tipo, ensamblada_penta) ?? 0;
+  return unit * cantidad;
 }
 
 // =====================================================
@@ -454,11 +460,13 @@ function NuevoSeedForm({ onSaved }: { onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const cantidadNum = Math.max(1, Number(cantidad) || 1);
 
+  const aceptaPenta = tipo ? SEED_ACEPTA_PENTA.includes(tipo) : false;
+
   async function guardar() {
     if (!tipo) return;
     setSaving(true);
     const { error } = await supabase.from("seeds_stock").insert({
-      tipo, ensamblada_penta: ensamblada,
+      tipo, ensamblada_penta: aceptaPenta && ensamblada,
       cantidad: cantidadNum,
       dueno: dueno.trim() || "Camus", estado: "activo",
     });
@@ -470,8 +478,8 @@ function NuevoSeedForm({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  const compra = tipo ? precioCompraSeed(tipo, ensamblada, cantidadNum) : 0;
-  const venta = tipo ? precioVentaSeed(tipo, ensamblada, cantidadNum) : 0;
+  const compra = tipo ? precioCompraSeed(tipo, aceptaPenta && ensamblada, cantidadNum) : 0;
+  const venta = tipo ? precioVentaSeed(tipo, aceptaPenta && ensamblada, cantidadNum) : 0;
 
   return (
     <div className="gamer-card rounded-lg p-4">
@@ -481,17 +489,26 @@ function NuevoSeedForm({ onSaved }: { onSaved: () => void }) {
           <FieldLabel>Tipo</FieldLabel>
           <Select<TipoSeed>
             value={tipo}
-            onChange={(v) => setTipo(v)}
+            onChange={(v) => { setTipo(v); setEnsamblada(false); }}
             options={[
               { value: "max_life", label: "Max Life" },
               { value: "damage_reduction", label: "Damage Reduction" },
+              { value: "penta", label: "Penta (contenedor)" },
+              { value: "exc_dmg_rate", label: "Exc Dmg Rate" },
+              { value: "crit_dmg_rate", label: "Crit Dmg Rate" },
             ]}
             placeholder="—"
           />
         </div>
         <div>
           <FieldLabel>Penta Sphere</FieldLabel>
-          <PillToggle value={ensamblada} onChange={setEnsamblada} />
+          {aceptaPenta ? (
+            <PillToggle value={ensamblada} onChange={setEnsamblada} />
+          ) : (
+            <div className="h-[42px] flex items-center px-3 rounded bg-bg-card border border-border-base opacity-40">
+              <span className="font-body text-xs text-text-muted">No aplica</span>
+            </div>
+          )}
         </div>
         <div>
           <FieldLabel>Cantidad</FieldLabel>
