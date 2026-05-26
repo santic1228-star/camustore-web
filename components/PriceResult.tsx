@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { CONFIG, whatsappLink } from "@/lib/config";
 import { trackEvento } from "@/lib/analytics";
+import { useCarrito } from "@/lib/carrito";
 
 interface Props {
   precio: number | null;
@@ -18,6 +20,8 @@ interface Props {
 export default function PriceResult({ precio, descripcion, motivoNoPrecio, categoria, nombre }: Props) {
   const tienePrecio = precio !== null && precio > 0;
   const formattedPrecio = precio !== null ? precio.toLocaleString("es-AR") : "—";
+  const { agregar } = useCarrito();
+  const [agregado, setAgregado] = useState(false);
 
   const wpMessage = `${CONFIG.WHATSAPP_GREETING} Quiero vender este item:
 ${descripcion}
@@ -30,6 +34,21 @@ Cotización: ${formattedPrecio} ${CONFIG.CURRENCY}`;
       item_nombre: nombre || "(cotización)",
       item_precio: precio,
     });
+  }
+
+  function onAgregar() {
+    if (precio === null) return;
+    // El detalle son las líneas de la descripción sin el bullet
+    const detalle = descripcion.split("\n").map((l) => l.replace(/^•\s*/, "")).join(" · ");
+    agregar({
+      tipo: "venta",
+      titulo: nombre || "Item a vender",
+      detalle,
+      precio,
+    });
+    onCotizar();
+    setAgregado(true);
+    setTimeout(() => setAgregado(false), 2000);
   }
 
   return (
@@ -49,6 +68,13 @@ Cotización: ${formattedPrecio} ${CONFIG.CURRENCY}`;
             </span>
           </div>
 
+          <button
+            onClick={onAgregar}
+            className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan w-full block text-center px-6 py-3 rounded font-body text-sm uppercase tracking-widest hover:bg-neon-cyan/25 transition-colors mb-2"
+          >
+            {agregado ? "✓ Agregado al pedido" : "+ Agregar a la venta"}
+          </button>
+
           <a
             href={whatsappLink(wpMessage)}
             target="_blank"
@@ -60,7 +86,7 @@ Cotización: ${formattedPrecio} ${CONFIG.CURRENCY}`;
           </a>
 
           <p className="text-[10px] font-body text-text-muted mt-3 text-center uppercase tracking-wider">
-            Te llevamos a WhatsApp con los datos cargados
+            Agregá varios y enviá todo junto, o consultá este al toque
           </p>
         </>
       ) : (

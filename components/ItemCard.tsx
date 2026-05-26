@@ -3,6 +3,7 @@
 import { CONFIG, whatsappLink } from "@/lib/config";
 import { RAZA_COLORS } from "@/lib/razas";
 import { trackEvento } from "@/lib/analytics";
+import { useCarrito } from "@/lib/carrito";
 import type { Item } from "@/lib/types";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 export default function ItemCard({ item }: Props) {
   const raceColor = RAZA_COLORS[item.raza] || RAZA_COLORS[""];
   const isLuck = item.luck;
+  const { agregar } = useCarrito();
 
   const wpMessage = `${CONFIG.WHATSAPP_GREETING} Me interesa este item:
 • ${item.nombre} ${item.parte}
@@ -83,15 +85,28 @@ export default function ItemCard({ item }: Props) {
             <span className="text-xs ml-1 text-text-secondary font-body">{CONFIG.CURRENCY}</span>
           </p>
         </div>
-        <a
-          href={whatsappLink(wpMessage)}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={onConsultar}
-          className="btn-whatsapp px-3 py-2 rounded text-xs font-body uppercase tracking-wider"
-        >
-          Consultar
-        </a>
+        <div className="flex flex-col gap-1.5">
+          <button
+            onClick={() => agregar({
+              tipo: "compra",
+              titulo: `${item.nombre} ${item.parte}`.trim(),
+              detalle: `${item.tipo}${item.socket ? ` · ${item.socket} sock` : ""} · nv${item.nivel}${item.luck ? " · luck" : ""}`,
+              precio: item.precio_venta,
+            })}
+            className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-3 py-2 rounded text-xs font-body uppercase tracking-wider hover:bg-neon-cyan/25 transition-colors"
+          >
+            + Agregar
+          </button>
+          <a
+            href={whatsappLink(wpMessage)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onConsultar}
+            className="btn-whatsapp px-3 py-2 rounded text-xs font-body uppercase tracking-wider text-center"
+          >
+            Consultar
+          </a>
+        </div>
       </div>
     </article>
   );

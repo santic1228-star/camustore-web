@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIG, whatsappLink } from "@/lib/config";
+import { useCarrito } from "@/lib/carrito";
 import { GEMA_LABELS } from "@/lib/precios";
 import { trackEvento } from "@/lib/analytics";
 import type { TipoGema } from "@/lib/database.types";
@@ -30,6 +31,7 @@ const ICONOS: Partial<Record<TipoGema, string>> = {
 
 export default function GemaCard({ group }: Props) {
   const { tipo, totalCantidad, precioUnitario } = group;
+  const { agregar } = useCarrito();
   const label = GEMA_LABELS[tipo];
   const icono = ICONOS[tipo] || "🔮";
 
@@ -68,20 +70,33 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u`;
         </div>
       </div>
 
-      <a
-        href={whatsappLink(wpMsg)}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={() => trackEvento({
-          tipo: "consultar_jewel",
-          item_categoria: "gema",
-          item_nombre: label,
-          item_precio: precioUnitario,
-        })}
-        className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest mt-1"
-      >
-        Consultar
-      </a>
+      <div className="flex flex-col gap-1.5 mt-1">
+        <button
+          onClick={() => agregar({
+            tipo: "compra",
+            titulo: label,
+            detalle: `${totalCantidad} u.`,
+            precio: precioUnitario,
+          })}
+          className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-4 py-2 rounded font-body text-xs uppercase tracking-widest hover:bg-neon-cyan/25 transition-colors"
+        >
+          + Agregar al pedido
+        </button>
+        <a
+          href={whatsappLink(wpMsg)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => trackEvento({
+            tipo: "consultar_jewel",
+            item_categoria: "gema",
+            item_nombre: label,
+            item_precio: precioUnitario,
+          })}
+          className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest"
+        >
+          Consultar
+        </a>
+      </div>
     </div>
   );
 }

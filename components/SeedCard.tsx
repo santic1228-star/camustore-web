@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIG, whatsappLink } from "@/lib/config";
+import { useCarrito } from "@/lib/carrito";
 import { SEED_LABELS } from "@/lib/precios";
 import { trackEvento } from "@/lib/analytics";
 import type { TipoSeed } from "@/lib/database.types";
@@ -16,6 +17,7 @@ interface Props {
 
 export default function SeedCard({ group }: Props) {
   const { tipo, ensamblada_penta, totalCantidad, precioUnidad } = group;
+  const { agregar } = useCarrito();
   const label = SEED_LABELS[tipo];
 
   const wpMsg = `${CONFIG.WHATSAPP_GREETING} Quiero comprar ${label}${ensamblada_penta ? " (Penta Sphere)" : ""}.
@@ -60,20 +62,33 @@ Precio: ${precioUnidad.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por unidad`;
         </div>
       </div>
 
-      <a
-        href={whatsappLink(wpMsg)}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={() => trackEvento({
-          tipo: "consultar_jewel",
-          item_categoria: "seed",
-          item_nombre: `${label}${ensamblada_penta ? " (Penta)" : ""}`,
-          item_precio: precioUnidad,
-        })}
-        className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest mt-1"
-      >
-        Consultar
-      </a>
+      <div className="flex flex-col gap-1.5 mt-1">
+        <button
+          onClick={() => agregar({
+            tipo: "compra",
+            titulo: `${label}${ensamblada_penta ? " (Penta)" : ""}`,
+            detalle: `${totalCantidad} u.`,
+            precio: precioUnidad,
+          })}
+          className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-4 py-2 rounded font-body text-xs uppercase tracking-widest hover:bg-neon-cyan/25 transition-colors"
+        >
+          + Agregar al pedido
+        </button>
+        <a
+          href={whatsappLink(wpMsg)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => trackEvento({
+            tipo: "consultar_jewel",
+            item_categoria: "seed",
+            item_nombre: `${label}${ensamblada_penta ? " (Penta)" : ""}`,
+            item_precio: precioUnidad,
+          })}
+          className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest"
+        >
+          Consultar
+        </a>
+      </div>
     </div>
   );
 }

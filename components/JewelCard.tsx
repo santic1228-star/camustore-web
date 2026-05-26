@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIG, whatsappLink } from "@/lib/config";
+import { useCarrito } from "@/lib/carrito";
 import { JEWEL_LABELS } from "@/lib/precios";
 import { trackEvento } from "@/lib/analytics";
 import type { TipoJewel } from "@/lib/database.types";
@@ -42,6 +43,7 @@ const COLORS_JEWEL: Record<TipoJewel, string> = {
 
 export default function JewelCard({ group }: Props) {
   const { tipo, esEspecial, totalUnidades, precioUnitario } = group;
+  const { agregar } = useCarrito();
   const label = JEWEL_LABELS[tipo];
   const totalJewels = esEspecial ? totalUnidades : totalUnidades * 30;
   const unidadLabel = esEspecial ? "unidad" : "bundle";
@@ -100,20 +102,33 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle`
         </div>
       </div>
 
-      <a
-        href={whatsappLink(wpMsg)}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={() => trackEvento({
-          tipo: "consultar_jewel",
-          item_categoria: "jewel",
-          item_nombre: label,
-          item_precio: precioUnitario,
-        })}
-        className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest mt-1"
-      >
-        Consultar
-      </a>
+      <div className="flex flex-col gap-1.5 mt-1">
+        <button
+          onClick={() => agregar({
+            tipo: "compra",
+            titulo: label,
+            detalle: esEspecial ? `${totalUnidades} u.` : `${totalUnidades} bundle(s)`,
+            precio: precioUnitario,
+          })}
+          className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-4 py-2 rounded font-body text-xs uppercase tracking-widest hover:bg-neon-cyan/25 transition-colors"
+        >
+          + Agregar al pedido
+        </button>
+        <a
+          href={whatsappLink(wpMsg)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => trackEvento({
+            tipo: "consultar_jewel",
+            item_categoria: "jewel",
+            item_nombre: label,
+            item_precio: precioUnitario,
+          })}
+          className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest"
+        >
+          Consultar
+        </a>
+      </div>
     </div>
   );
 }

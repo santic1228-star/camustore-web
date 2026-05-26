@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Cinzel, JetBrains_Mono, Orbitron } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { CONFIG } from "@/lib/config";
+import { CarritoProvider } from "@/lib/carrito";
+import Carrito from "@/components/Carrito";
 import "./globals.css";
 
 const cinzel = Cinzel({
@@ -45,7 +47,10 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${cinzel.variable} ${jetbrains.variable} ${orbitron.variable}`}>
       <body className="bg-bg-deep text-text-primary font-body antialiased min-h-screen">
-        {children}
+        <CarritoProvider>
+          {children}
+          <Carrito />
+        </CarritoProvider>
         <Analytics />
       </body>
     </html>
