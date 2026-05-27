@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { FieldLabel, TextInput, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
-import { precioArmadura, precioArma, precioAlas } from "@/lib/precios";
+import { precioArmadura, precioArma, precioAlas, precioEscudo, precioVentaEscudo, ESCUDO_NOMBRES, escudoLabel } from "@/lib/precios";
 import { getRaza } from "@/lib/razas";
 import type { Categoria, TipoItem, Raza } from "@/lib/database.types";
 
@@ -38,7 +38,7 @@ interface Props {
   editItem?: EditableItem;  // si está presente, modo edición
 }
 
-type Tab = "armadura" | "arma" | "ala";
+type Tab = "armadura" | "arma" | "ala" | "escudo";
 
 export default function ItemFormModal({ onClose, onSaved, editItem }: Props) {
   const initialTab: Tab = editItem ? (editItem.categoria as Tab) : "armadura";
@@ -64,7 +64,7 @@ export default function ItemFormModal({ onClose, onSaved, editItem }: Props) {
         {/* Tabs (solo en modo nuevo) */}
         {!isEdit && (
           <div className="px-6 pt-4 flex gap-2 border-b border-border-base">
-            {(["armadura", "arma", "ala"] as Tab[]).map((t) => (
+            {(["armadura", "arma", "ala", "escudo"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -74,7 +74,7 @@ export default function ItemFormModal({ onClose, onSaved, editItem }: Props) {
                     : "border-transparent text-text-secondary hover:text-text-primary"
                 }`}
               >
-                {t === "armadura" ? "🛡 Armadura" : t === "arma" ? "⚔ Arma" : "🪽 Ala"}
+                {t === "armadura" ? "🛡 Armadura" : t === "arma" ? "⚔ Arma" : t === "ala" ? "🪽 Ala" : "🛡 Escudo"}
               </button>
             ))}
           </div>
@@ -85,6 +85,7 @@ export default function ItemFormModal({ onClose, onSaved, editItem }: Props) {
           {tab === "armadura" && <FormArmadura onClose={onClose} onSaved={onSaved} editItem={editItem} />}
           {tab === "arma" && <FormArma onClose={onClose} onSaved={onSaved} editItem={editItem} />}
           {tab === "ala" && <FormAla onClose={onClose} onSaved={onSaved} editItem={editItem} />}
+          {tab === "escudo" && <FormEscudo onClose={onClose} onSaved={onSaved} editItem={editItem} />}
         </div>
       </div>
     </div>
@@ -687,6 +688,137 @@ function FormAla({ onSaved, onClose, editItem }: { onClose: () => void; onSaved:
 }
 
 // =====================================================
+// FORM: ESCUDO (categoría escudo, solo tipo 400, venta ×6)
+// =====================================================
+function FormEscudo({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const isEdit = !!editItem;
+  const [nombreCodigo, setNombreCodigo] = useState(editItem?.nombre || "");  // código del escudo
+  const [nivel, setNivel] = useState(String(editItem?.nivel ?? 9));
+  const [hpDdRef, setHpDdRef] = useState(editItem?.hp_dd_ref ?? true);
+  const [socket, setSocket] = useState(editItem?.socket || 2);
+  const [luck, setLuck] = useState(editItem?.luck ?? true);
+  const [skill, setSkill] = useState(editItem?.skill ?? true);
+  const [raza, setRaza] = useState<"" | Raza>((editItem?.raza as Raza) || "");
+  const [dueno, setDueno] = useState(editItem?.dueno || "");
+  const [precioCompraOverride, setPrecioCompraOverride] = useState(
+    editItem?.precio_compra ? String(editItem.precio_compra) : ""
+  );
+  const [saving, setSaving] = useState(false);
+
+  const precioCompraCalc = useMemo(() => {
+    return precioEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill });
+  }, [hpDdRef, nivel, socket, luck, skill]);
+
+  const precioCompraFinal = useMemo(() => {
+    if (precioCompraOverride && Number(precioCompraOverride) > 0) return Number(precioCompraOverride);
+    return precioCompraCalc;
+  }, [precioCompraOverride, precioCompraCalc]);
+
+  const precioVentaCalc = useMemo(() => {
+    return precioVentaEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill });
+  }, [hpDdRef, nivel, socket, luck, skill]);
+
+  async function guardar() {
+    if (precioVentaCalc === null || !nombreCodigo) return;
+    setSaving(true);
+    const payload = {
+      categoria: "escudo" as Categoria,
+      nombre: nombreCodigo,           // guardamos el código (guardian, crimson_glory, etc.)
+      parte: "shield",
+      raza: raza || null,
+      nivel: Number(nivel),
+      tipo: "400" as TipoItem,
+      socket,
+      hp_dd_ref: hpDdRef,
+      luck,
+      skill,
+      precio_compra: precioCompraFinal,
+      precio_venta: precioVentaCalc,
+      dueno: dueno.trim() || null,
+    };
+    const { error } = isEdit
+      ? await supabase.from("items").update(payload).eq("id", editItem!.id)
+      : await supabase.from("items").insert({ ...payload, estado: "activo" });
+    setSaving(false);
+    if (error) {
+      alert("Error al guardar: " + error.message);
+    } else {
+      onSaved();
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Escudo</FieldLabel>
+          <Select<string>
+            value={nombreCodigo}
+            onChange={(v) => setNombreCodigo(v)}
+            options={ESCUDO_NOMBRES}
+            placeholder="Elegí escudo"
+          />
+        </div>
+        <div>
+          <FieldLabel>Nivel (0 a 15)</FieldLabel>
+          <TextInput value={nivel} onChange={setNivel} type="number" min={0} max={15} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Raza (opcional)</FieldLabel>
+          <Select<Raza>
+            value={raza}
+            onChange={(v) => setRaza(v)}
+            options={[
+              { value: "Knight", label: "Knight" },
+              { value: "Wizard", label: "Wizard" },
+              { value: "Elf", label: "Elf" },
+              { value: "Gladiator", label: "Gladiator" },
+              { value: "Lord", label: "Lord" },
+              { value: "Summoner", label: "Summoner" },
+            ]}
+            placeholder="—"
+          />
+        </div>
+        <div>
+          <FieldLabel>Sockets · mín. 2</FieldLabel>
+          <SocketSelector value={socket} onChange={setSocket} disabled={false} min={2} />
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>Opción obligatoria</FieldLabel>
+        <Checkbox checked={hpDdRef} onChange={setHpDdRef} label="HP + DD + REF" hint="Sin esto, no se compra" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>¿Tiene Luck?</FieldLabel>
+          <PillToggle value={luck} onChange={setLuck} />
+        </div>
+        <div>
+          <FieldLabel>¿Tiene Skill?</FieldLabel>
+          <PillToggle value={skill} onChange={setSkill} />
+        </div>
+      </div>
+
+      <PriceFooter
+        precioCompraCalc={precioCompraFinal}
+        precioVentaCalc={precioVentaCalc}
+        dueno={dueno}
+        setDueno={setDueno}
+        precioCompraOverride={precioCompraOverride}
+        setPrecioCompraOverride={setPrecioCompraOverride}
+        onSave={guardar}
+        saving={saving}
+        canSave={!!nombreCodigo && precioVentaCalc !== null}
+        saveLabel={isEdit ? "Guardar cambios" : "Guardar escudo"}
+      />
+    </div>
+  );
+}
 // COMPONENTE: SocketSelector
 // =====================================================
 function SocketSelector({

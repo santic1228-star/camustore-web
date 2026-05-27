@@ -4,7 +4,7 @@
 
 export type Raza = "Knight" | "Wizard" | "Elf" | "Gladiator" | "Lord" | "Summoner" | "";
 export type Tipo = "s3" | "380" | "400" | "alas";
-export type Categoria = "armadura" | "arma" | "ala" | "jewel" | "seed";
+export type Categoria = "armadura" | "arma" | "ala" | "escudo" | "jewel" | "seed";
 
 export interface Item {
   id: string;

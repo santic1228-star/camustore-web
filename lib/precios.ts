@@ -170,9 +170,68 @@ export function precioArma(input: ArmaInput): number | null {
 }
 
 // =====================================================
-// ALAS
+// ESCUDOS
 // =====================================================
-// Las alas ahora SÍ tienen progresión por nivel (0-15).
+// Escudos: muy escasos. Solo existen en tipo 400.
+// Reglas iguales a ARMADURA 400 + skill como modificador:
+//   - HP + DD + REF obligatorio (sin eso → no se compra).
+//   - Base lvl 0-9: 1.000 · lvl 15: 3.000 (interpolación 10-14).
+//   - Sin luck → ×0.25.
+//   - Sin skill → ×0.25 (modificador, como en armas).
+//   - Mínimo 2 sockets (0 o 1 → no se compra). +600 WC por socket (al final).
+// Venta = compra × 6 (más que armadura/arma 400 por ser escasos).
+//
+// Nombres (desplegable): guardian (Wizard), crimson_glory (Knight),
+//   salamander (Gladiator), cross (Lord).
+
+export type NombreEscudo = "guardian" | "crimson_glory" | "salamander" | "cross";
+
+export const ESCUDO_NOMBRES: { value: NombreEscudo; label: string }[] = [
+  { value: "guardian", label: "Guardian Shield (Wizard)" },
+  { value: "crimson_glory", label: "Crimson Glory (Knight)" },
+  { value: "salamander", label: "Salamander Shield (Gladiator)" },
+  { value: "cross", label: "Cross Shield (Lord)" },
+];
+
+export function escudoLabel(nombre: string | null): string {
+  if (!nombre) return "Escudo";
+  const found = ESCUDO_NOMBRES.find((n) => n.value === nombre);
+  return found ? found.label : "Escudo";
+}
+
+export const ESCUDO_MULT_VENTA = 6;
+
+export interface EscudoInput {
+  hpDdRef: boolean;
+  nivel: number;          // 0-15
+  socket: number | null;  // 2-3 (mínimo 2)
+  luck: boolean;
+  skill: boolean;
+}
+
+/** Precio de COMPRA de un escudo. null si no se compra. */
+export function precioEscudo(input: EscudoInput): number | null {
+  const { hpDdRef, nivel, socket, luck, skill } = input;
+  if (!hpDdRef) return null;
+  if (!socket || socket < 2) return null;  // mínimo 2 sockets
+
+  const precioPorLvl = precioPorNivel(1000, 3000, nivel);
+  const factorLuck = luck ? 1 : 0.25;
+  const factorSkill = skill ? 1 : 0.25;
+  let precio = precioPorLvl * factorLuck * factorSkill;
+
+  const socketsValidos = Math.min(3, socket);
+  precio += socketsValidos * 600;
+
+  return Math.round(precio);
+}
+
+/** Precio de VENTA de un escudo (compra × 6). */
+export function precioVentaEscudo(input: EscudoInput): number | null {
+  const compra = precioEscudo(input);
+  if (compra === null) return null;
+  return Math.round(compra * ESCUDO_MULT_VENTA);
+}
 // Las tablas de precios definen el valor base (lvl 0-9) y el valor a lvl 15.
 // Entre lvl 10 y 14 se interpola linealmente.
 

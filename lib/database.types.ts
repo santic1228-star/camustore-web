@@ -3,7 +3,7 @@
  * Si cambia el schema de la DB, hay que actualizar este archivo.
  */
 
-export type Categoria = "armadura" | "arma" | "ala";
+export type Categoria = "armadura" | "arma" | "ala" | "escudo";
 export type TipoItem = "s3" | "380" | "400";
 export type Raza = "Knight" | "Wizard" | "Elf" | "Gladiator" | "Lord" | "Summoner";
 export type EstadoItem = "activo" | "vendido" | "retirado";

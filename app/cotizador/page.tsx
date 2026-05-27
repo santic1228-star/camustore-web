@@ -4,7 +4,7 @@ import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import SeccionArmaduras from "./SeccionArmaduras";
-import SeccionArmas from "./SeccionArmas";
+import SeccionArmasEscudos from "./SeccionArmasEscudos";
 import SeccionAlas from "./SeccionAlas";
 import SeccionJewels from "./SeccionJewels";
 import SeccionSeeds from "./SeccionSeeds";
@@ -15,7 +15,7 @@ type Tab = "armaduras" | "armas" | "alas" | "jewels" | "seeds" | "gemas" | "joye
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "armaduras", label: "Armaduras", icon: "🛡" },
-  { id: "armas", label: "Armas", icon: "⚔" },
+  { id: "armas", label: "Armas y Escudos", icon: "⚔" },
   { id: "alas", label: "Alas", icon: "🪽" },
   { id: "jewels", label: "Jewels", icon: "💎" },
   { id: "seeds", label: "Seeds", icon: "🌱" },
@@ -62,7 +62,7 @@ export default function CotizadorPage() {
           {/* Sección activa */}
           <div className="animate-fade-in">
             {tab === "armaduras" && <SeccionArmaduras />}
-            {tab === "armas" && <SeccionArmas />}
+            {tab === "armas" && <SeccionArmasEscudos />}
             {tab === "alas" && <SeccionAlas />}
             {tab === "jewels" && <SeccionJewels />}
             {tab === "seeds" && <SeccionSeeds />}

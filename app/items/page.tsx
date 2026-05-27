@@ -11,7 +11,7 @@ import GemaCard from "@/components/GemaCard";
 import JoyaCard from "@/components/JoyaCard";
 import { supabase } from "@/lib/supabase";
 import { getRaza } from "@/lib/razas";
-import { JEWEL_PRECIOS, SEED_LABELS, GEMA_PRECIOS, GEMA_MULT_VENTA } from "@/lib/precios";
+import { JEWEL_PRECIOS, SEED_LABELS, GEMA_PRECIOS, GEMA_MULT_VENTA, escudoLabel } from "@/lib/precios";
 import type { Item } from "@/lib/types";
 import type { ItemPublico, JewelPublico, SeedPublico, GemaPublico, JoyaPublico, TipoJewel, TipoSeed, TipoGema } from "@/lib/database.types";
 
@@ -38,12 +38,19 @@ function adaptar(it: ItemPublico): Item {
     if (it.opc_return) opts.push("return");
     if (it.opc_life_recov) opts.push("life recovery");
     opciones = opts.join(", ");
+  } else if (it.categoria === "escudo") {
+    const opts: string[] = ["hp, dd, ref"];
+    if (it.skill) opts.push("skill");
+    opciones = opts.join(", ");
   }
+
+  // Para escudos, el nombre guardado es un código → traducir a label
+  const nombreMostrar = it.categoria === "escudo" ? escudoLabel(it.nombre) : it.nombre;
 
   return {
     id: it.id,
-    nombre: it.nombre,
-    parte: it.parte || "",
+    nombre: nombreMostrar,
+    parte: it.categoria === "escudo" ? "" : (it.parte || ""),
     raza: it.raza || getRaza(it.nombre),
     nivel: it.nivel,
     opciones,
@@ -298,6 +305,7 @@ export default function ItemsPage() {
                 <FilterChip label="🛡 Armaduras" active={filterCategoria === "armadura"} onClick={() => setFilterCategoria("armadura")} />
                 <FilterChip label="⚔ Armas" active={filterCategoria === "arma"} onClick={() => setFilterCategoria("arma")} />
                 <FilterChip label="🪽 Alas" active={filterCategoria === "ala"} onClick={() => setFilterCategoria("ala")} />
+                <FilterChip label="🛡 Escudos" active={filterCategoria === "escudo"} onClick={() => setFilterCategoria("escudo")} />
 
                 <div className="w-full sm:w-px sm:h-7 sm:bg-border-base sm:mx-2" />
 
