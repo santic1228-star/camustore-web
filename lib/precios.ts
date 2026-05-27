@@ -481,6 +481,7 @@ function factorNivelJoya(nivel: number): number {
 /**
  * Precio base de joyería (variante CARA), rango 5.000 - 30.000.
  * % aporta 55% (curva exp 1.4), nivel aporta 45% (con saltos).
+ * Se aplica un -25% adicional sobre todo (ajuste de precios).
  */
 function precioJoyaBase(nivel: number, pct: number): number {
   const MIN = 5000, MAX = 30000;
@@ -489,7 +490,8 @@ function precioJoyaBase(nivel: number, pct: number): number {
   const rango = MAX - MIN;
   const aportePct = fPct * rango * 0.55;
   const aporteNivel = fNivel * rango * 0.45;
-  return Math.round(Math.min(MAX, MIN + aportePct + aporteNivel));
+  const bruto = Math.min(MAX, MIN + aportePct + aporteNivel);
+  return Math.round(bruto * 0.75);  // -25% adicional para todos
 }
 
 export interface JoyaInput {
@@ -497,29 +499,35 @@ export interface JoyaInput {
   nombre?: string | null;     // nombre de la joya (para -30% en variantes baratas)
   nivel: number;              // 0-15
   lifeRecovery: number;       // 1-7 (% de Life Recovery)
+  tieneLife?: boolean;        // ¿tiene la opción Life Recovery? (sin esto no se compra)
   // Anillo:
   hpDdRef?: boolean;
   // Pendiente:
   exeRate?: boolean;
   dmg2pct?: boolean;
-  opcionVariable?: OpcionVariablePendiente;  // debe ser "life" para comprarse
+  tercera?: "" | "speed7" | "dmglvl20";  // tercera opción (obligatoria en pendientes)
 }
 
 /** Precio de COMPRA de una joya. null si no se compra. */
 export function precioJoya(input: JoyaInput): number | null {
   const { tipo, nivel, lifeRecovery, nombre } = input;
   if (!tipo) return null;
+
+  // Sin Life Recovery → no se compra (puede tener AG/Mana que no sirven)
+  if (!input.tieneLife) return null;
   if (lifeRecovery < 1 || lifeRecovery > 7) return null;
 
   if (tipo === "anillo") {
+    // Requiere HP + DD + REF
     if (!input.hpDdRef) return null;
   } else {
+    // Pendiente: exe rate + 2% obligatorias + tercera opción obligatoria (speed7/dmglvl20)
     if (!input.exeRate || !input.dmg2pct) return null;
-    if (input.opcionVariable !== "life") return null;
+    if (input.tercera !== "speed7" && input.tercera !== "dmglvl20") return null;
   }
 
   let precio = precioJoyaBase(nivel, lifeRecovery);
-  // Variante barata: -30%
+  // Variante barata: -30% encima del -25% ya aplicado en el base
   if (esJoyaBarata(tipo, nombre ?? null)) {
     precio = Math.round(precio * 0.7);
   }

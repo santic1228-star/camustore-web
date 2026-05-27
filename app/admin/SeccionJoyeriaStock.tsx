@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { FieldLabel, TextInput, Select, Checkbox } from "@/components/ui/FormField";
-import { precioJoya, precioVentaJoya, JOYA_LABELS, TipoJoya, OpcionVariablePendiente, ANILLO_NOMBRES, PENDIENTE_NOMBRES, joyaLabel, esJoyaBarata } from "@/lib/precios";
+import { FieldLabel, TextInput, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
+import { precioJoya, precioVentaJoya, JOYA_LABELS, TipoJoya, ANILLO_NOMBRES, PENDIENTE_NOMBRES, joyaLabel, esJoyaBarata } from "@/lib/precios";
 import type { EstadoItem, OpcionVariableJoya } from "@/lib/database.types";
 
 interface Joya {
@@ -210,11 +210,11 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
   const [nombre, setNombre] = useState("");
   const [nivel, setNivel] = useState("0");
   const [lifeRecovery, setLifeRecovery] = useState(1);
+  const [tieneLife, setTieneLife] = useState(true);
   const [hpDdRef, setHpDdRef] = useState(true);
   const [exeRate, setExeRate] = useState(true);
   const [dmg2pct, setDmg2pct] = useState(true);
-  const [tercera, setTercera] = useState<"" | "speed7" | "dmglvl20">("speed7");
-  const [opcionVariable, setOpcionVariable] = useState<OpcionVariablePendiente>("life");
+  const [tercera, setTercera] = useState<"speed7" | "dmglvl20">("speed7");
   const [raza, setRaza] = useState("");
   const [dueno, setDueno] = useState("");
   const [saving, setSaving] = useState(false);
@@ -224,8 +224,9 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
     nombre: nombre || null,
     nivel: Number(nivel) || 0,
     lifeRecovery,
+    tieneLife,
     hpDdRef,
-    exeRate, dmg2pct, opcionVariable,
+    exeRate, dmg2pct, tercera,
   };
   const compra = tipo ? precioJoya(input) : null;
   const venta = tipo ? precioVentaJoya(input) : null;
@@ -242,8 +243,8 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
       hp_dd_ref: tipo === "anillo" ? hpDdRef : false,
       exe_rate: tipo === "pendiente" ? exeRate : false,
       dmg_2pct: tipo === "pendiente" ? dmg2pct : false,
-      tercera_opcion: tipo === "pendiente" && tercera ? tercera : null,
-      opcion_variable: tipo === "pendiente" ? opcionVariable : null,
+      tercera_opcion: tipo === "pendiente" ? tercera : null,
+      opcion_variable: "life",  // siempre life (solo compramos esos)
       raza: raza.trim() || null,
       dueno: dueno.trim() || "Camus",
       precio_compra: compra,
@@ -253,9 +254,9 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
     setSaving(false);
     if (error) alert("Error: " + error.message);
     else {
-      setTipo(""); setNombre(""); setNivel("0"); setLifeRecovery(1);
+      setTipo(""); setNombre(""); setNivel("0"); setLifeRecovery(1); setTieneLife(true);
       setHpDdRef(true); setExeRate(true); setDmg2pct(true); setTercera("speed7");
-      setOpcionVariable("life"); setRaza(""); setDueno("");
+      setRaza(""); setDueno("");
       onSaved();
     }
   }
@@ -264,7 +265,7 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
     <div className="gamer-card rounded-lg p-4 space-y-3">
       <p className="font-body text-xs uppercase tracking-widest text-text-secondary">Agregar al stock</p>
 
-      <div className="grid sm:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-3 gap-3">
         <div>
           <FieldLabel>Tipo</FieldLabel>
           <Select<TipoJoya>
@@ -290,14 +291,6 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
           <FieldLabel>Nivel (0-15)</FieldLabel>
           <TextInput value={nivel} onChange={setNivel} type="number" min={0} max={15} />
         </div>
-        <div>
-          <FieldLabel>Life Recovery: {lifeRecovery}%</FieldLabel>
-          <input
-            type="range" min={1} max={7} value={lifeRecovery}
-            onChange={(e) => setLifeRecovery(Number(e.target.value))}
-            className="w-full accent-neon-cyan mt-2.5"
-          />
-        </div>
       </div>
 
       {tipo === "anillo" && (
@@ -314,18 +307,47 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
             </div>
           </div>
           <div>
-            <FieldLabel>Opción variable</FieldLabel>
-            <Select<OpcionVariablePendiente>
-              value={opcionVariable}
-              onChange={(v) => { if (v) setOpcionVariable(v); }}
-              options={[
-                { value: "life", label: "Life Recovery" },
-                { value: "mana", label: "Mana (no se compra)" },
-                { value: "ag", label: "AG (no se compra)" },
-              ]}
-              placeholder="—"
-            />
+            <FieldLabel>Tercera opción (obligatoria)</FieldLabel>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { v: "speed7", label: "speed +7" },
+                { v: "dmglvl20", label: "dmg lvl/20" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => setTercera(opt.v)}
+                  className={`px-3 py-2 rounded font-body text-xs uppercase tracking-wider border transition-colors ${
+                    tercera === opt.v
+                      ? "bg-neon-cyan/15 border-neon-cyan/60 text-neon-cyan"
+                      : "bg-bg-card border-border-base text-text-secondary hover:border-border-strong"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Life Recovery */}
+      {tipo && (
+        <div className="grid sm:grid-cols-2 gap-3 items-start">
+          <div>
+            <FieldLabel>¿Tiene Life Recovery?</FieldLabel>
+            <PillToggle value={tieneLife} onChange={setTieneLife} trueLabel="Sí" falseLabel="No (AG/Mana)" />
+          </div>
+          {tieneLife && (
+            <div>
+              <FieldLabel>Life Recovery: {lifeRecovery}%</FieldLabel>
+              <input
+                type="range" min={1} max={7} value={lifeRecovery}
+                onChange={(e) => setLifeRecovery(Number(e.target.value))}
+                className="w-full accent-neon-cyan mt-2.5"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -355,7 +377,9 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
           </p>
         ) : (
           <p className="font-body text-xs text-neon-orange/80">
-            Con estos datos no se compra (revisá requisitos: {tipo === "anillo" ? "HP+DD+REF" : "exe rate + 2% + opción Life Recovery"}).
+            {!tieneLife
+              ? "Solo compramos joyas con Life Recovery."
+              : `Con estos datos no se compra (revisá: ${tipo === "anillo" ? "HP+DD+REF" : "exe rate + 2% + tercera opción"}).`}
           </p>
         )
       )}
