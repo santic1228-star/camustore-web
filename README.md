@@ -19,11 +19,7 @@ Tienda web de items de Mu Online (servidor Guerra Eterna).
 
 ## Configuración
 
-Editá `lib/config.ts` para personalizar:
-
-- `WHATSAPP_NUMBER` — tu número en formato internacional (ej: `5493510000000`)
-- `STORE_NAME` — nombre de la tienda
-- `STORE_TAGLINE` — tagline
+ `lib/config.ts` para personalizar:
 
 ## Desarrollo local
 
