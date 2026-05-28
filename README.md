@@ -27,21 +27,3 @@ Tienda web de items de Mu Online (servidor Guerra Eterna).
 npm install
 npm run dev
 ```
-
-Después abrí http://localhost:3000
-
-## Deploy en Vercel
-
-1. Subí este repo a GitHub.
-2. En Vercel: New Project → Import → seleccioná el repo.
-3. Vercel detecta Next.js automáticamente. Clic en Deploy.
-4. Listo: tu web estará en `camustore-web-XXX.vercel.app`.
-
-## Próximos pasos (Phase 2)
-
-- [ ] Conectar Supabase para datos reales
-- [ ] Cotizador funcional con cálculos en vivo
-- [ ] Auth con Google para consignación
-- [ ] Panel admin (aprobar items)
-- [ ] Categorías de jewels y seeds
-- [ ] Imágenes de personajes por raza
