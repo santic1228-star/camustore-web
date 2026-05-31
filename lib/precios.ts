@@ -35,12 +35,14 @@ export interface ArmaduraInput {
   hpDdRef: boolean;
   nivel: number;          // 0-15
   tipo: "s3" | "380" | "400" | null;
-  socket: number | null;  // 2-3 (solo tipo 400, mínimo 2)
+  socket: number | null;  // 2-3 (solo tipo 400, mínimo 2). Con forzarAdmin acepta 1.
   luck: boolean;
+  /** Saltea validación de sockets mínimos (uso solo desde admin para cargar items raros). */
+  forzarAdmin?: boolean;
 }
 
 export function precioArmadura(input: ArmaduraInput): number | null {
-  const { hpDdRef, nivel, tipo, socket, luck } = input;
+  const { hpDdRef, nivel, tipo, socket, luck, forzarAdmin } = input;
 
   if (!tipo) return null;
   if (!hpDdRef) return null;
@@ -48,8 +50,8 @@ export function precioArmadura(input: ArmaduraInput): number | null {
   // s3 y 380: sin luck no se compran
   if ((tipo === "s3" || tipo === "380") && !luck) return null;
 
-  // 400: requiere mínimo 2 sockets
-  if (tipo === "400" && (!socket || socket < 2)) return null;
+  // 400: requiere mínimo 2 sockets (salvo carga manual desde admin)
+  if (tipo === "400" && !forzarAdmin && (!socket || socket < 2)) return null;
 
   // Precio base (lvl 0-9) y precio a nivel 15
   let base = 0, baseLvl15 = 0;
@@ -107,10 +109,12 @@ export interface ArmaInput {
   socket: number | null;
   luck: boolean;
   skill: boolean;
+  /** Saltea validación de sockets mínimos (uso solo desde admin para cargar items raros). */
+  forzarAdmin?: boolean;
 }
 
 export function precioArma(input: ArmaInput): number | null {
-  const { exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill } = input;
+  const { exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill, forzarAdmin } = input;
 
   if (!tipo) return null;
 
@@ -136,8 +140,9 @@ export function precioArma(input: ArmaInput): number | null {
       // 3 opciones → ×1.0
       factorOpciones = 1;
     } else {
-      // 2 opciones (rate + 2%) → ×0.60 solo si luck + skill + 2 sockets
-      if (!luck || !skill || socketsValidos < 2) return null;
+      // 2 opciones (rate + 2%) → ×0.60 solo si luck + skill + 2 sockets (salvo admin)
+      if (!luck || !skill) return null;
+      if (!forzarAdmin && socketsValidos < 2) return null;
       factorOpciones = 0.6;
     }
   }
@@ -204,16 +209,19 @@ export const ESCUDO_MULT_VENTA = 6;
 export interface EscudoInput {
   hpDdRef: boolean;
   nivel: number;          // 0-15
-  socket: number | null;  // 2-3 (mínimo 2)
+  socket: number | null;  // 2-3 (mínimo 2). Con forzarAdmin acepta 1.
   luck: boolean;
   skill: boolean;
+  /** Saltea validación de sockets mínimos (uso solo desde admin para cargar items raros). */
+  forzarAdmin?: boolean;
 }
 
 /** Precio de COMPRA de un escudo. null si no se compra. */
 export function precioEscudo(input: EscudoInput): number | null {
-  const { hpDdRef, nivel, socket, luck, skill } = input;
+  const { hpDdRef, nivel, socket, luck, skill, forzarAdmin } = input;
   if (!hpDdRef) return null;
-  if (!socket || socket < 2) return null;  // mínimo 2 sockets
+  if (!socket || socket < 1) return null;  // necesita al menos 1 socket
+  if (!forzarAdmin && socket < 2) return null;  // cotizador exige 2; admin acepta 1
 
   const precioPorLvl = precioPorNivel(1000, 3000, nivel);
   const factorLuck = luck ? 1 : 0.25;

@@ -31,7 +31,6 @@ export const RAZA_MAP: Record<string, Raza> = {
   // Gladiator
   hurricane: "Gladiator",
   volcano: "Gladiator",
-  eternal: "Gladiator",
   explosive: "Gladiator",
 
   // Lord
@@ -46,6 +45,7 @@ export const RAZA_MAP: Record<string, Raza> = {
   "red wing": "Summoner",
   "storm blitz": "Summoner",
   queen: "Summoner",
+  eternal: "Summoner",
 };
 
 export function getRaza(nombre: string): Raza {

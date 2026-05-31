@@ -216,6 +216,7 @@ function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onS
     return precioArmadura({
       hpDdRef, nivel: Number(nivel) || 0, tipo: tipo || null,
       socket: tipo === "400" ? socket : null, luck,
+      forzarAdmin: true,
     });
   }, [hpDdRef, nivel, tipo, socket, luck]);
 
@@ -315,8 +316,8 @@ function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onS
           />
         </div>
         <div>
-          <FieldLabel>Sockets {tipo === "400" ? "· mín. 2" : "· solo 400"}</FieldLabel>
-          <SocketSelector value={socket} onChange={setSocket} disabled={tipo !== "400"} min={2} />
+          <FieldLabel>Sockets {tipo === "400" ? "· 1 a 3" : "· solo 400"}</FieldLabel>
+          <SocketSelector value={socket} onChange={setSocket} disabled={tipo !== "400"} min={1} />
         </div>
       </div>
 
@@ -379,6 +380,7 @@ function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved
       tipo: tipo || null,
       socket: tipo === "400" ? socket : null,
       luck, skill,
+      forzarAdmin: true,
     });
   }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill]);
 
@@ -706,7 +708,7 @@ function FormEscudo({ onSaved, onClose, editItem }: { onClose: () => void; onSav
   const [saving, setSaving] = useState(false);
 
   const precioCompraCalc = useMemo(() => {
-    return precioEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill });
+    return precioEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill, forzarAdmin: true });
   }, [hpDdRef, nivel, socket, luck, skill]);
 
   const precioCompraFinal = useMemo(() => {
@@ -715,7 +717,7 @@ function FormEscudo({ onSaved, onClose, editItem }: { onClose: () => void; onSav
   }, [precioCompraOverride, precioCompraCalc]);
 
   const precioVentaCalc = useMemo(() => {
-    return precioVentaEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill });
+    return precioVentaEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill, forzarAdmin: true });
   }, [hpDdRef, nivel, socket, luck, skill]);
 
   async function guardar() {
@@ -783,8 +785,8 @@ function FormEscudo({ onSaved, onClose, editItem }: { onClose: () => void; onSav
           />
         </div>
         <div>
-          <FieldLabel>Sockets · mín. 2</FieldLabel>
-          <SocketSelector value={socket} onChange={setSocket} disabled={false} min={2} />
+          <FieldLabel>Sockets · 1 a 3</FieldLabel>
+          <SocketSelector value={socket} onChange={setSocket} disabled={false} min={1} />
         </div>
       </div>
 
