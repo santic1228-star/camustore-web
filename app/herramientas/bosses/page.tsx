@@ -55,7 +55,8 @@ export default function BossesPage() {
                 <span className="text-neon-cyan font-bold">·</span>
                 <span>
                   Anotá la hora <span className="text-luck-gold font-bold">Server</span> (abajo a
-                  la izquierda de la pantalla) en el momento en que el boss muere.
+                  la izquierda de la pantalla) en el momento en que el boss muere. El juego no
+                  avisa: solo lo sabe quien lo mató. Con hora y minutos alcanza.
                 </span>
               </li>
               <li className="flex gap-3">

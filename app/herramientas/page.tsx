@@ -2,49 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import { HERRAMIENTAS, type Herramienta } from "@/lib/herramientas";
 
 export const metadata: Metadata = {
   title: "Herramientas · CamuStore",
   description:
     "Herramientas gratis para jugadores de Guerra Eterna: calculador de Gaion, timers de Kundun y Cryonox y más. Sin login.",
 };
-
-interface Herramienta {
-  href?: string;
-  icono: string;
-  titulo: string;
-  texto: string;
-  estado: "activa" | "pronto";
-}
-
-const HERRAMIENTAS: Herramienta[] = [
-  {
-    href: "/herramientas/gaion",
-    icono: "⏳",
-    titulo: "Gaion time calculator",
-    texto: "Cargás la hora del servidor y el standby de la captura, y te dice a qué hora abre el próximo.",
-    estado: "activa",
-  },
-  {
-    href: "/herramientas/bosses",
-    icono: "💀",
-    titulo: "Kundun & Cryonox",
-    texto: "Cargás la hora en que murió el boss y te dice a qué hora respawnea, con cuenta regresiva.",
-    estado: "activa",
-  },
-  {
-    icono: "🐉",
-    titulo: "Invasiones",
-    texto: "Red Dragon, Skeleton King, White Wizard, Rabbits, Pouch of Blessing, Fire Sphere.",
-    estado: "pronto",
-  },
-  {
-    icono: "🏰",
-    titulo: "Eventos",
-    texto: "Blood Castle, Devil Square, Chaos Castle, Pandora, Event Drop, Lotería.",
-    estado: "pronto",
-  },
-];
 
 export default function HerramientasPage() {
   return (
@@ -66,7 +30,7 @@ export default function HerramientasPage() {
 
           <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {HERRAMIENTAS.map((h) => (
-              <TarjetaHerramienta key={h.titulo} {...h} />
+              <TarjetaHerramienta key={h.slug} {...h} />
             ))}
           </div>
         </div>

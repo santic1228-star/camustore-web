@@ -110,13 +110,13 @@ export default function BossTimer({ boss }: Props) {
           etiqueta="Murió a las"
           tonoEtiqueta="gold"
           valor={hora}
-          placeholder="21:45:47"
+          placeholder="21:45"
           maxLength={8}
           onChange={(v) => setHora(mascaraHora(v))}
           estado={horaP.estado}
-          ayudaIncompleto="Formato HH:MM:SS (o HH:MM)"
+          ayudaIncompleto="Formato HH:MM (los segundos son opcionales)"
           ayudaInvalido="Hora inválida (00–23 h, 00–59 min y seg)"
-          ayudaNormal="Hora servidor en que lo mataron"
+          ayudaNormal="Hora servidor en que lo mataron · con HH:MM alcanza"
         />
       </div>
 
