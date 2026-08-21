@@ -9,15 +9,16 @@ export default function Navbar() {
           <div className="w-8 h-8 rounded border border-neon-cyan/50 bg-bg-card flex items-center justify-center text-neon-cyan font-display font-black text-lg group-hover:shadow-[0_0_15px_rgba(0,212,255,0.6)] transition-shadow">
             C
           </div>
-          <span className="font-display font-bold text-lg sm:text-xl tracking-wider text-text-primary group-hover:neon-text-cyan transition-colors">
+          <span className="hidden sm:inline font-display font-bold text-lg sm:text-xl tracking-wider text-text-primary group-hover:neon-text-cyan transition-colors">
             {CONFIG.STORE_NAME}
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1 sm:gap-2 text-sm">
+        <nav className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <NavLink href="/items">Catálogo</NavLink>
           <NavLink href="/cotizador">Cotizador</NavLink>
           <NavLink href="/consignar">Consignar</NavLink>
+          <NavLink href="/herramientas">Herramientas</NavLink>
         </nav>
       </div>
     </header>

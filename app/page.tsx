@@ -73,6 +73,30 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* Herramientas gratis */}
+        <section className="px-4 sm:px-6 pb-20">
+          <div className="max-w-5xl mx-auto">
+            <Link
+              href="/herramientas/gaion"
+              className="gamer-card rounded-lg p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 block"
+            >
+              <div className="text-4xl sm:text-5xl">⏳</div>
+              <div className="flex-1">
+                <p className="font-body text-[10px] uppercase tracking-[0.3em] text-neon-cyan mb-1">
+                  Nuevo · Herramientas gratis, sin login
+                </p>
+                <h2 className="font-display font-bold text-xl sm:text-2xl text-text-primary">
+                  Gaion time calculator
+                </h2>
+                <p className="font-body text-sm text-text-secondary mt-1 leading-relaxed">
+                  Cargá la hora del servidor y el standby de la captura y sabé a qué hora abre el próximo Gaion.
+                </p>
+              </div>
+              <p className="font-body text-sm text-neon-cyan font-medium whitespace-nowrap">Abrir →</p>
+            </Link>
+          </div>
+        </section>
+
         {/* Stats / Trust */}
         <section className="px-4 sm:px-6 pb-20">
           <div className="max-w-5xl mx-auto">
