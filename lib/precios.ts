@@ -60,7 +60,7 @@ export function precioArmadura(input: ArmaduraInput): number | null {
     baseLvl15 = 1500;
   } else if (tipo === "380") {
     base = 800;
-    baseLvl15 = 2100;
+    baseLvl15 = 2400;
   } else if (tipo === "400") {
     base = 1000;
     baseLvl15 = 3000;
@@ -153,7 +153,7 @@ export function precioArma(input: ArmaInput): number | null {
     baseLvl15 = 1500;
   } else if (tipo === "380") {
     base = 800;
-    baseLvl15 = 2100;
+    baseLvl15 = 2400;
   } else if (tipo === "400") {
     base = 1000;
     baseLvl15 = 3000;

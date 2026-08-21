@@ -6,7 +6,7 @@ import WhatsAppButton from "@/components/WhatsAppButton";
 export const metadata: Metadata = {
   title: "Herramientas · CamuStore",
   description:
-    "Herramientas gratis para jugadores de Guerra Eterna: calculador de Gaion y más. Sin login.",
+    "Herramientas gratis para jugadores de Guerra Eterna: calculador de Gaion, timers de Kundun y Cryonox y más. Sin login.",
 };
 
 interface Herramienta {
@@ -26,15 +26,16 @@ const HERRAMIENTAS: Herramienta[] = [
     estado: "activa",
   },
   {
+    href: "/herramientas/bosses",
+    icono: "💀",
+    titulo: "Kundun & Cryonox",
+    texto: "Cargás la hora en que murió el boss y te dice a qué hora respawnea, con cuenta regresiva.",
+    estado: "activa",
+  },
+  {
     icono: "🐉",
     titulo: "Invasiones",
     texto: "Red Dragon, Skeleton King, White Wizard, Rabbits, Pouch of Blessing, Fire Sphere.",
-    estado: "pronto",
-  },
-  {
-    icono: "💀",
-    titulo: "Bosses",
-    texto: "Erohim, Medusa, Dark Sorcer, Cryonox, Kundun, Ice Queen y sus respawns.",
     estado: "pronto",
   },
   {
