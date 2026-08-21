@@ -84,7 +84,7 @@ export default function SeccionEscudos() {
           </div>
           {socket > 0 && (
             <p className="text-[10px] font-body text-luck-gold mt-1.5 uppercase tracking-wider">
-              +{(socket * 600).toLocaleString("es-AR")} WC por sockets
+              +{(socket * 1200).toLocaleString("es-AR")} WC por sockets
             </p>
           )}
         </div>

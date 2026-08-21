@@ -237,3 +237,42 @@ export interface Database {
     };
   };
 }
+
+// =====================================================
+// CONSIGNACIONES (nuevo modelo, v2)
+// =====================================================
+
+export type EstadoConsignacionV2 = "pendiente" | "parcial" | "aprobada" | "rechazada";
+export type EstadoConsigItem = "pendiente" | "aprobado" | "rechazado";
+
+/** Categoría del item dentro de una consignación. */
+export type CategoriaConsig =
+  | "armadura" | "arma" | "escudo" | "ala"
+  | "joya" | "jewel" | "seed" | "gema";
+
+export interface ConsignacionRow {
+  id: string;
+  personaje: string;
+  whatsapp: string;
+  notas: string | null;
+  estado: EstadoConsignacionV2;
+  created_at: string;
+  updated_at: string;
+  revisado_at: string | null;
+}
+
+export interface ConsignacionItemRow {
+  id: string;
+  consignacion_id: string;
+  categoria: CategoriaConsig;
+  atributos: Record<string, unknown>;
+  precio_sugerido: number;
+  precio_aprobado: number | null;
+  comision_pct: number;
+  estado: EstadoConsigItem;
+  motivo_rechazo: string | null;
+  item_creado_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+

@@ -178,12 +178,13 @@ export function precioArma(input: ArmaInput): number | null {
 // ESCUDOS
 // =====================================================
 // Escudos: muy escasos. Solo existen en tipo 400.
-// Reglas iguales a ARMADURA 400 + skill como modificador:
+// Reglas iguales a ARMADURA 400 + skill como modificador + markup de ARMA:
 //   - HP + DD + REF obligatorio (sin eso → no se compra).
 //   - Base lvl 0-9: 1.000 · lvl 15: 3.000 (interpolación 10-14).
 //   - Sin luck → ×0.25.
 //   - Sin skill → ×0.25 (modificador, como en armas).
-//   - Mínimo 2 sockets (0 o 1 → no se compra). +600 WC por socket (al final).
+//   - Markup ×1.5 (como armas).
+//   - Mínimo 2 sockets (0 o 1 → no se compra). +1200 WC por socket (como armas).
 // Venta = compra × 6 (más que armadura/arma 400 por ser escasos).
 //
 // Nombres (desplegable): guardian (Wizard), crimson_glory (Knight),
@@ -226,10 +227,10 @@ export function precioEscudo(input: EscudoInput): number | null {
   const precioPorLvl = precioPorNivel(1000, 3000, nivel);
   const factorLuck = luck ? 1 : 0.25;
   const factorSkill = skill ? 1 : 0.25;
-  let precio = precioPorLvl * factorLuck * factorSkill;
+  let precio = precioPorLvl * factorLuck * factorSkill * 1.5;  // markup ×1.5 igual que armas
 
   const socketsValidos = Math.min(3, socket);
-  precio += socketsValidos * 600;
+  precio += socketsValidos * 1200;  // +1200 WC por socket (igual que armas)
 
   return Math.round(precio);
 }
