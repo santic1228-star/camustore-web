@@ -90,10 +90,10 @@ export default function GaionCalculator() {
             tonoEtiqueta="green"
             valor={standby}
             placeholder="30:30"
-            maxLength={5}
+            maxLength={6}
             onChange={(v) => setStandby(mascaraStandby(v))}
             estado={standbyP.estado}
-            ayudaIncompleto="Formato MM:SS"
+            ayudaIncompleto="Formato MM:SS (o MMM:SS si pasa de 99 min)"
             ayudaInvalido="Segundos inválidos (00–59)"
           />
         </div>
@@ -193,8 +193,11 @@ function CampoHud({
   ayudaIncompleto,
   ayudaInvalido,
 }: CampoHudProps) {
+  const [tocado, setTocado] = useState(false);
+  const mostrarError = estado === "invalido" || (tocado && estado === "incompleto");
+
   const borde =
-    estado === "invalido"
+    mostrarError
       ? "border-danger-red focus-within:border-danger-red"
       : estado === "ok"
         ? "border-neon-cyan/70 focus-within:border-neon-cyan"
@@ -225,12 +228,13 @@ function CampoHud({
           placeholder={placeholder}
           maxLength={maxLength}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={() => setTocado(true)}
           className="min-w-0 flex-1 bg-transparent text-right font-numeric text-2xl sm:text-3xl font-bold tracking-widest tabular-nums text-luck-gold placeholder:text-text-muted/40 outline-none"
         />
       </label>
       <p
         className={`mt-1 min-h-[1rem] font-body text-[11px] ${
-          estado === "invalido" ? "text-danger-red" : "text-text-muted"
+          mostrarError ? "text-danger-red" : "text-text-muted"
         }`}
       >
         {ayuda}

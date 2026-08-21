@@ -64,8 +64,8 @@ export default function GaionPage() {
                   A la derecha está{" "}
                   <span className="text-success-green font-bold">Standby Time</span> con el
                   tiempo restante en{" "}
-                  <span className="font-numeric text-text-primary">MM:SS</span>. Ignorá el
-                  número entre paréntesis.
+                  <span className="font-numeric text-text-primary">MM:SS</span> (puede pasar
+                  de 99 minutos, ej. 119:43). Ignorá el número entre paréntesis.
                 </span>
               </li>
             </ol>

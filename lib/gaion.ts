@@ -28,11 +28,15 @@ export function mascaraHora(raw: string): string {
   return `${d.slice(0, 2)}:${d.slice(2, 4)}:${d.slice(4)}`;
 }
 
-/** Máscara MM:SS — hasta 4 dígitos, anclada a la izquierda. */
+/**
+ * Máscara M:SS / MM:SS / MMM:SS — hasta 5 dígitos, anclada a la DERECHA:
+ * los últimos dos dígitos siempre son segundos. Así "305" → 3:05,
+ * "3030" → 30:30 y "11943" → 119:43 (el cooldown de 2hs permite >99 min).
+ */
 export function mascaraStandby(raw: string): string {
-  const d = soloDigitos(raw).slice(0, 4);
+  const d = soloDigitos(raw).slice(0, 5);
   if (d.length <= 2) return d;
-  return `${d.slice(0, 2)}:${d.slice(2)}`;
+  return `${d.slice(0, -2)}:${d.slice(-2)}`;
 }
 
 // =====================================================
@@ -59,14 +63,19 @@ export function parseHoraServidor(s: string): CampoParseado {
   return { estado: "ok", seg: h * 3600 + m * 60 + sec };
 }
 
-/** Standby: MM:SS (4 dígitos). Minutos 00–99, segundos 00–59. */
+/**
+ * Standby: M:SS, MM:SS o MMM:SS (3 a 5 dígitos). Segundos 00–59.
+ * Con 3 o 4 dígitos y segundos > 59 lo tratamos como "incompleto" porque
+ * el usuario puede estar a mitad de tipear un valor más largo
+ * ("1194" es el paso previo a "11943" → 119:43).
+ */
 export function parseStandby(s: string): CampoParseado {
   const d = soloDigitos(s);
   if (d.length === 0) return { estado: "vacio", seg: null };
-  if (d.length !== 4) return { estado: "incompleto", seg: null };
-  const m = Number(d.slice(0, 2));
-  const sec = Number(d.slice(2, 4));
-  if (sec > 59) return { estado: "invalido", seg: null };
+  if (d.length < 3) return { estado: "incompleto", seg: null };
+  const m = Number(d.slice(0, -2));
+  const sec = Number(d.slice(-2));
+  if (sec > 59) return { estado: d.length >= 5 ? "invalido" : "incompleto", seg: null };
   return { estado: "ok", seg: m * 60 + sec };
 }
 
