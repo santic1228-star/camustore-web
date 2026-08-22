@@ -12,7 +12,8 @@ export default function Navbar() {
   const headerRef = useRef<HTMLElement>(null);
   const menuId = useId();
 
-  const enHerramientas = pathname?.startsWith("/herramientas") ?? false;
+  const enHerramientas =
+    (pathname?.startsWith("/herramientas") || pathname?.startsWith("/miembros")) ?? false;
 
   // Se cierra al navegar.
   useEffect(() => {
@@ -40,7 +41,11 @@ export default function Navbar() {
     <header
       ref={headerRef}
       className="sticky top-0 z-50 backdrop-blur-md bg-bg-deep/80 border-b border-border-base"
-      onMouseLeave={() => setAbierto(false)}
+      // Cerrar al sacar el mouse de la barra. Solo mouse: en touch el "leave"
+      // llega apenas levantás el dedo y cerraría el menú recién abierto.
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") setAbierto(false);
+      }}
     >
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         <Link href="/" className="group flex items-center gap-2">
@@ -82,12 +87,16 @@ export default function Navbar() {
         </nav>
 
         {/* Panel del desplegable: hermano de <nav> (no hijo) para que el
-            overflow-x del nav no lo recorte en el celu. */}
+            overflow-x del nav no lo recorte en el celu.
+            El wrapper lleva pt-1 en vez de mt-1: la separación visual es la
+            misma, pero no queda un hueco fuera del header que dispare el
+            "pointer leave" al bajar el cursor hacia el menú (bug del 21/08). */}
         {abierto && (
+          <div className="absolute right-4 sm:right-6 top-full pt-1 w-[min(18rem,calc(100vw-2rem))]">
           <div
             id={menuId}
             role="menu"
-            className="absolute right-4 sm:right-6 top-full mt-1 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-border-strong bg-bg-card shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-2"
+            className="rounded-lg border border-border-strong bg-bg-card shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-2"
           >
             <p className="px-3 pt-1.5 pb-2 font-body text-[10px] uppercase tracking-[0.3em] text-neon-cyan">
               Gratis · sin login
@@ -113,6 +122,21 @@ export default function Navbar() {
             >
               Todas las herramientas →
             </Link>
+            <div className="border-t border-border-base my-1" />
+            <p className="px-3 pt-1.5 pb-1 font-body text-[10px] uppercase tracking-[0.3em] text-neon-orange">
+              Con login
+            </p>
+            <Link
+              href="/miembros"
+              role="menuitem"
+              className="flex items-center gap-3 px-3 py-2.5 rounded text-text-primary hover:bg-bg-card-hover hover:text-neon-orange transition-colors font-body text-sm"
+            >
+              <span className="text-xl leading-none" aria-hidden>
+                🔐
+              </span>
+              <span>Miembros · timers compartidos</span>
+            </Link>
+          </div>
           </div>
         )}
       </div>

@@ -33,6 +33,23 @@ export default function HerramientasPage() {
               <TarjetaHerramienta key={h.slug} {...h} />
             ))}
           </div>
+
+          {/* Zona de miembros (con login) */}
+          <Link
+            href="/miembros"
+            className="group mt-6 sm:mt-8 block rounded-lg border border-dashed border-neon-orange/40 p-5 sm:p-6 hover:border-neon-orange hover:bg-neon-orange/5 transition-colors"
+          >
+            <p className="font-body text-[10px] uppercase tracking-[0.3em] text-neon-orange mb-2">
+              Para la guild · con login
+            </p>
+            <p className="font-display font-bold text-xl text-text-primary group-hover:neon-text-orange transition-colors">
+              🔐 Miembros · timers compartidos
+            </p>
+            <p className="font-body text-sm text-text-secondary mt-2 leading-relaxed">
+              Gaion, Kundun y Cryonox en una sola pantalla: uno carga, todos lo ven, con historial y
+              aviso antes de la hora. Entrás con el usuario que te da Camus.
+            </p>
+          </Link>
         </div>
       </main>
       <WhatsAppButton />

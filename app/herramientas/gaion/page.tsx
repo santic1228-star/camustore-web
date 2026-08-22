@@ -75,15 +75,21 @@ export default function GaionPage() {
             </p>
           </section>
 
-          {/* Teaser guild */}
-          <section className="mt-4 rounded-lg border border-dashed border-border-strong p-5 sm:p-6">
+          {/* Versión de miembros */}
+          <section className="mt-4 rounded-lg border border-dashed border-neon-orange/40 p-5 sm:p-6">
             <p className="font-body text-[10px] uppercase tracking-[0.3em] text-neon-orange mb-2">
-              Próximamente · para la guild
+              Para la guild · con login
             </p>
             <p className="font-body text-sm text-text-secondary leading-relaxed">
-              Horario compartido entre miembros, cuenta regresiva en vivo, lista de las
-              próximas aperturas y aviso antes de que abra. Con login.
+              En la zona de miembros uno carga y todos lo ven, con cuenta regresiva compartida,
+              historial y aviso antes de la hora.
             </p>
+            <Link
+              href="/miembros"
+              className="inline-block mt-3 px-4 py-2 rounded font-body text-xs uppercase tracking-widest border border-neon-orange/50 text-neon-orange hover:bg-neon-orange/10 transition-colors"
+            >
+              Entrar a miembros →
+            </Link>
           </section>
         </div>
       </main>

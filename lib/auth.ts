@@ -4,6 +4,7 @@
 
 import { supabase } from "./supabase";
 import type { User } from "@supabase/supabase-js";
+import { esEmailAdmin } from "./admins";
 
 /**
  * Login con email + contraseña (para admins).
@@ -45,22 +46,12 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Lista de emails de admin. Hardcodeado por simplicidad.
- * Para agregar más admins, agregalos acá Y a la tabla `admins` de Supabase
- * (la tabla sigue siendo la fuente de verdad para RLS en la DB).
- */
-const ADMIN_EMAILS = [
-  "santic1228@gmail.com",
-];
-
-/**
  * Verifica si el usuario actual es admin.
- * Compara el email del usuario contra la lista hardcodeada.
+ * Compara el email del usuario contra la lista hardcodeada en lib/admins.ts.
  *
  * Esto es robusto porque solo necesita el JWT del cliente (que ya tenemos),
  * no hace queries adicionales que puedan colgarse.
  */
 export async function checkIsAdmin(user: User | null): Promise<boolean> {
-  if (!user?.email) return false;
-  return ADMIN_EMAILS.includes(user.email.toLowerCase());
+  return esEmailAdmin(user?.email);
 }

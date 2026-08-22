@@ -276,3 +276,51 @@ export interface ConsignacionItemRow {
   updated_at: string;
 }
 
+
+// =====================================================
+// Versión de miembros (21/08/2026) — tablas `miembros` y `eventos_registros`
+// (SQL: camustore_miembros.sql)
+// =====================================================
+
+export type TipoEventoRegistro = "gaion" | "kundun" | "cryonox";
+
+export interface MiembroRow {
+  id: string;
+  email: string;
+  personaje: string;
+  activo: boolean;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MiembroInsert = Pick<MiembroRow, "email" | "personaje"> & {
+  activo?: boolean;
+  notas?: string | null;
+};
+
+export interface EventoRegistroRow {
+  id: string;
+  tipo: TipoEventoRegistro;
+  /** ISO timestamptz: captura (Gaion) o muerte (bosses). */
+  hora_evento: string;
+  /** Solo Gaion. */
+  standby_seg: number | null;
+  /** ISO timestamptz: apertura / respawn calculado al cargar (snapshot). */
+  resultado_at: string;
+  miembro_id: string | null;
+  cargado_por_email: string;
+  cargado_por_personaje: string;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EventoRegistroInsert = Pick<
+  EventoRegistroRow,
+  "tipo" | "hora_evento" | "resultado_at" | "cargado_por_email" | "cargado_por_personaje"
+> & {
+  standby_seg?: number | null;
+  miembro_id?: string | null;
+  notas?: string | null;
+};

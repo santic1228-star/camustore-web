@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
-export type AdminTab = "catalogo" | "stock" | "gemas" | "joyeria" | "analytics" | "pendientes";
+export type AdminTab = "catalogo" | "stock" | "gemas" | "joyeria" | "analytics" | "miembros" | "pendientes";
 
 interface Props {
   user: User;
@@ -20,6 +20,7 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "gemas", label: "Gemas y otros", icon: "🔮" },
   { id: "joyeria", label: "Joyería", icon: "💍" },
   { id: "analytics", label: "Analytics", icon: "📊" },
+  { id: "miembros", label: "Miembros", icon: "👥" },
   { id: "pendientes", label: "Pendientes", icon: "⏳" },
 ];
 

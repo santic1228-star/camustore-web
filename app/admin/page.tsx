@@ -8,6 +8,7 @@ import SeccionStock from "./SeccionStock";
 import SeccionGemasStock from "./SeccionGemasStock";
 import SeccionJoyeriaStock from "./SeccionJoyeriaStock";
 import SeccionAnalytics from "./SeccionAnalytics";
+import SeccionMiembros from "./SeccionMiembros";
 
 export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("catalogo");
@@ -21,6 +22,7 @@ export default function AdminPage() {
           {tab === "gemas" && <SeccionGemasStock />}
           {tab === "joyeria" && <SeccionJoyeriaStock />}
           {tab === "analytics" && <SeccionAnalytics />}
+          {tab === "miembros" && <SeccionMiembros />}
           {tab === "pendientes" && (
             <div className="text-center py-16">
               <p className="text-4xl mb-3">⏳</p>
