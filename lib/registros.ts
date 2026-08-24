@@ -8,14 +8,16 @@
  *
  * Sin DOM, sin Supabase. Recibe `ahoraMs` por parámetro para poder testear.
  *
- * Decisiones (DECISIONES §3, §3b, §8 y 3ª sesión del 21/08):
- *   gaion  → apertura = captura + standby; siguientes cada 2 hs.
+ * Decisiones (DECISIONES §3, §3b, §8 y fix del 23/08):
+ *   gaion  → apertura = captura + standby. La SIGUIENTE no se puede calcular:
+ *            el cooldown de 2 hs corre desde que el evento TERMINA (duración
+ *            desconocida). Pasada la apertura conocida (+ gracia), la tarjeta
+ *            muestra "Horario desconocido" hasta que alguien cargue otra captura.
  *   kundun → respawn = muerte + 12 hs. cryonox → muerte + 18 hs.
- *   avisos → 15 y 5 minutos antes.
+ *   avisos → 15 y 5 minutos antes (solo sobre horarios realmente conocidos).
  */
 
 import { BOSSES } from "./bosses";
-import { GAION_COOLDOWN_SEG } from "./gaion";
 import { DIA_MS, DIA_SEG, etiquetaDia, formatDuracion, formatHMS, pad2 } from "./tiempo";
 import type { EventoRegistroRow, TipoEventoRegistro } from "./database.types";
 
@@ -102,7 +104,7 @@ export const EVENTOS: EventoConfig[] = [
     etiquetaHecho: "Captura del HUD",
     etiquetaResultado: "abre a las",
     botonAhora: null,
-    detalle: "Hora Server + Standby Time de la captura. Después, cada 2 hs.",
+    detalle: "Hora Server + Standby Time de la captura del fin del evento.",
   },
   {
     tipo: "kundun",
@@ -198,13 +200,16 @@ export function estadoDeRegistro(r: Pick<EventoRegistroRow, "resultado_at">, aho
   return estadoDe(Date.parse(r.resultado_at), ahoraMs);
 }
 
-/** Estado "vigente" de un registro: para bosses es directo; para el Gaion avanza de a 2 hs. */
+/**
+ * Estado "vigente" de un registro. Para los bosses es directo (muerte + cooldown).
+ * Para el Gaion NO se extrapola: el cooldown de 2 hs corre desde que el evento
+ * termina y no sabemos cuánto dura; pasada la apertura conocida (+ gracia),
+ * el horario es `desconocido` hasta que alguien cargue otra captura.
+ */
 export interface VistaRegistro {
   estado: EstadoRegistro;
-  /** Solo Gaion: cuántas aperturas de 2 hs avanzó desde la cargada. */
-  saltos: number;
-  /** Solo Gaion: próximas aperturas después de la vigente. */
-  siguientes: number[];
+  /** Solo Gaion: la apertura conocida ya pasó y la siguiente no se puede calcular. */
+  desconocido: boolean;
 }
 
 export function vistaDeRegistro(
@@ -212,36 +217,13 @@ export function vistaDeRegistro(
   registro: Pick<EventoRegistroRow, "resultado_at">,
   ahoraMs: number,
 ): VistaRegistro {
-  const resultadoMs = Date.parse(registro.resultado_at);
-  if (config.tipo === "gaion") {
-    const vig = aperturaVigenteGaion(resultadoMs, ahoraMs);
-    return { estado: estadoDe(vig.ms, ahoraMs), saltos: vig.saltos, siguientes: siguientesGaionMs(vig.ms, 3) };
-  }
-  return { estado: estadoDe(resultadoMs, ahoraMs), saltos: 0, siguientes: [] };
+  const estado = estadoDe(Date.parse(registro.resultado_at), ahoraMs);
+  const desconocido = config.tipo === "gaion" && -estado.faltaSeg > GRACIA_GAION_SEG;
+  return { estado, desconocido };
 }
 
-/** Próximas aperturas del Gaion después de la última conocida, cada 2 hs. */
-export function siguientesGaionMs(resultadoMs: number, cantidad: number): number[] {
-  const out: number[] = [];
-  for (let i = 1; i <= cantidad; i++) out.push(resultadoMs + i * GAION_COOLDOWN_SEG * 1000);
-  return out;
-}
-
-/** Después de abrir, la tarjeta sigue mostrando esa apertura ("¡Abrió!") este rato antes de pasar a la siguiente. */
+/** Después de abrir, la tarjeta muestra "¡Abrió!" este rato; pasado, el horario es desconocido. */
 export const GRACIA_GAION_SEG = 5 * 60;
-
-/**
- * Para el Gaion: la apertura "vigente" es la primera que todavía no pasó
- * (con unos minutos de gracia), avanzando de a 2 hs desde la cargada.
- * Devuelve esa y cuántos saltos dio.
- */
-export function aperturaVigenteGaion(resultadoMs: number, ahoraMs: number): { ms: number; saltos: number } {
-  const paso = GAION_COOLDOWN_SEG * 1000;
-  const limite = ahoraMs - GRACIA_GAION_SEG * 1000;
-  if (resultadoMs >= limite) return { ms: resultadoMs, saltos: 0 };
-  const saltos = Math.floor((limite - resultadoMs) / paso) + 1;
-  return { ms: resultadoMs + saltos * paso, saltos };
-}
 
 // =====================================================
 // Textos

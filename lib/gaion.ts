@@ -6,16 +6,16 @@
  *
  * Regla confirmada por Camus:
  *   apertura = hora servidor de la captura + standby (MM:SS) que muestra el HUD.
- *   Después de cada apertura, la siguiente es a las 2hs (cooldown).
+ *   La SIGUIENTE apertura no se puede calcular: el cooldown de 2 hs corre desde
+ *   que el evento TERMINA (3 stages, duración desconocida), no desde que abre.
+ *   Pasada la apertura conocida, el horario es desconocido hasta la próxima captura.
  *
  * Lo genérico (máscara y parseo de hora servidor, formato, cruce de medianoche)
  * vive en lib/tiempo.ts y se re-exporta acá para no romper imports existentes.
  */
 
 import {
-  DIA_SEG,
   etiquetaDia,
-  momentoDesde,
   soloDigitos,
   sumarAlDia,
   type CampoParseado,
@@ -33,6 +33,12 @@ export {
   type CampoParseado,
 } from "./tiempo";
 
+/**
+ * Cooldown del Gaion: 2 hs desde que el evento TERMINA (no desde que abre).
+ * Como la duración del evento no se conoce, este valor NO alcanza para
+ * calcular la próxima apertura; queda como dato de dominio (y explica por
+ * qué el standby del HUD puede superar los 99 minutos).
+ */
 export const GAION_COOLDOWN_SEG = 2 * 60 * 60;
 
 // =====================================================
@@ -76,19 +82,6 @@ export type AperturaGaion = MomentoDia;
 /** Próxima apertura: hora servidor + standby. */
 export function calcularApertura(horaSeg: number, standbySeg: number): AperturaGaion {
   return sumarAlDia(horaSeg, standbySeg);
-}
-
-/**
- * Aperturas siguientes a partir de una apertura conocida, cada 2hs.
- * (Para la versión guild: lista de próximos horarios.)
- */
-export function siguientesAperturas(apertura: AperturaGaion, cantidad: number): AperturaGaion[] {
-  const base = apertura.diasExtra * DIA_SEG + apertura.seg;
-  const out: AperturaGaion[] = [];
-  for (let i = 1; i <= cantidad; i++) {
-    out.push(momentoDesde(base + i * GAION_COOLDOWN_SEG));
-  }
-  return out;
 }
 
 /** Texto listo para pegar en el chat de la guild. */

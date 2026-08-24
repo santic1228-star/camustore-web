@@ -119,10 +119,46 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
       {/* ============ Registro vigente ============ */}
       <div className="text-center" aria-live="polite">
         <p className="font-body text-xs uppercase tracking-[0.3em] text-text-muted mb-2">
-          {config.nombre} {config.etiquetaResultado}
+          {vista?.desconocido ? `${config.nombre} · próxima apertura` : `${config.nombre} ${config.etiquetaResultado}`}
         </p>
 
-        {vista && registro ? (
+        {vista && registro && vista.desconocido ? (
+          <>
+            <p className="font-numeric font-black text-5xl sm:text-6xl tracking-wider tabular-nums text-text-muted/40 select-none">
+              ??:??:??
+            </p>
+            <p className="font-body font-bold text-xl sm:text-2xl text-neon-orange mt-3">
+              Horario desconocido
+            </p>
+            <p className="font-body text-sm text-text-secondary mt-2">
+              Última apertura conocida:{" "}
+              <span className="font-numeric text-text-primary tabular-nums">{hmServidor(vista.estado.resultadoMs)}</span>
+              {vista.estado.diasExtra !== 0 && (
+                <span className="text-text-muted"> ({fechaCortaServidor(vista.estado.resultadoMs)})</span>
+              )}
+              {ahora !== null && <> · abrió {textoHace(vista.estado.resultadoMs, ahora)}</>}
+            </p>
+            <p className="font-body text-xs text-text-muted mt-3 max-w-md mx-auto">
+              El cooldown de 2 hs corre desde que el evento <span className="text-text-secondary">termina</span>, así
+              que la próxima apertura no se puede calcular. Cargá la captura del fin del evento y la ven todos.
+            </p>
+            <p className="font-body text-[11px] text-text-muted mt-4">
+              Cargó <span className="text-text-secondary">{registro.cargado_por_personaje}</span>{" "}
+              {ahora !== null && textoHace(Date.parse(registro.created_at), ahora)}
+            </p>
+            <div className="flex justify-center mt-4">
+              <button
+                type="button"
+                onClick={() => setFormAbierto((v) => !v)}
+                className={`px-4 py-2 rounded font-body text-xs uppercase tracking-widest transition-colors ${
+                  formAbierto ? "text-text-muted hover:text-text-secondary" : "btn-primary"
+                }`}
+              >
+                {formAbierto ? "Cancelar" : "Cargar nueva"}
+              </button>
+            </div>
+          </>
+        ) : vista && registro ? (
           <>
             <p
               className={`font-numeric font-black text-5xl sm:text-6xl tracking-wider tabular-nums ${
@@ -165,30 +201,12 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
               </p>
             )}
 
-            {/* Gaion: siguientes cada 2 hs */}
-            {esGaion && !vista.estado.vencido && (
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {vista.siguientes.map((ms) => (
-                  <span
-                    key={ms}
-                    className="px-2.5 py-1 rounded border border-border-base bg-bg-card font-numeric text-sm text-text-secondary tabular-nums"
-                  >
-                    {hmServidor(ms)}
-                  </span>
-                ))}
-                <span className="self-center font-body text-[11px] text-text-muted">después, cada 2 hs</span>
-              </div>
-            )}
-
             {/* Quién cargó */}
             <p className="font-body text-[11px] text-text-muted mt-4">
               Cargó <span className="text-text-secondary">{registro.cargado_por_personaje}</span>{" "}
               {ahora !== null && textoHace(Date.parse(registro.created_at), ahora)}
-              {esGaion && vista.saltos > 0 && (
-                <>
-                  {" "}· captura de las {hmServidor(Date.parse(registro.hora_evento))}, +{vista.saltos}{" "}
-                  {vista.saltos === 1 ? "apertura" : "aperturas"}
-                </>
+              {esGaion && (
+                <> · captura de las {hmServidor(Date.parse(registro.hora_evento))}</>
               )}
               {!esGaion && (
                 <>

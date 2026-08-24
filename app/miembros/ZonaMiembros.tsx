@@ -392,8 +392,11 @@ export default function ZonaMiembros({ sesion }: Props) {
             <li className="flex gap-3">
               <span className="text-neon-cyan font-bold">·</span>
               <span>
-                El Gaion avanza solo: pasada una apertura, la tarjeta muestra la siguiente (cada 2 hs) hasta
-                que alguien cargue una captura nueva.
+                El Gaion no se puede adelantar: el cooldown de 2 hs corre desde que el evento{" "}
+                <span className="text-text-primary">termina</span> (y el evento dura lo que duren sus stages).
+                Pasada la apertura conocida, la tarjeta pasa a{" "}
+                <span className="text-neon-orange">Horario desconocido</span> hasta que alguien cargue la
+                captura del fin del evento.
               </span>
             </li>
             <li className="flex gap-3">
