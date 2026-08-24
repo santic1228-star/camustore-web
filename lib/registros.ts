@@ -198,6 +198,28 @@ export function estadoDeRegistro(r: Pick<EventoRegistroRow, "resultado_at">, aho
   return estadoDe(Date.parse(r.resultado_at), ahoraMs);
 }
 
+/** Estado "vigente" de un registro: para bosses es directo; para el Gaion avanza de a 2 hs. */
+export interface VistaRegistro {
+  estado: EstadoRegistro;
+  /** Solo Gaion: cuántas aperturas de 2 hs avanzó desde la cargada. */
+  saltos: number;
+  /** Solo Gaion: próximas aperturas después de la vigente. */
+  siguientes: number[];
+}
+
+export function vistaDeRegistro(
+  config: EventoConfig,
+  registro: Pick<EventoRegistroRow, "resultado_at">,
+  ahoraMs: number,
+): VistaRegistro {
+  const resultadoMs = Date.parse(registro.resultado_at);
+  if (config.tipo === "gaion") {
+    const vig = aperturaVigenteGaion(resultadoMs, ahoraMs);
+    return { estado: estadoDe(vig.ms, ahoraMs), saltos: vig.saltos, siguientes: siguientesGaionMs(vig.ms, 3) };
+  }
+  return { estado: estadoDe(resultadoMs, ahoraMs), saltos: 0, siguientes: [] };
+}
+
 /** Próximas aperturas del Gaion después de la última conocida, cada 2 hs. */
 export function siguientesGaionMs(resultadoMs: number, cantidad: number): number[] {
   const out: number[] = [];

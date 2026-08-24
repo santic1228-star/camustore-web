@@ -1,16 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "@/lib/auth";
-import { cargarRegistros, eliminarRegistro, type RegistrosCargados, type SesionMiembro } from "@/lib/miembros";
 import {
+  cargarRegistros,
+  contarAportes,
+  eliminarRegistro,
+  type Aporte,
+  type RegistrosCargados,
+  type SesionMiembro,
+} from "@/lib/miembros";
+import {
+  AVISOS_MIN,
   EVENTOS,
   eventoPorTipo,
   fechaCortaServidor,
   hmServidor,
   textoHace,
+  vistaDeRegistro,
 } from "@/lib/registros";
+import {
+  avisosActivados,
+  desbloquearSonido,
+  guardarAvisos,
+  notificar,
+  pedirPermisoNotificaciones,
+  permisoNotificaciones,
+  sonarAviso,
+  vibrar,
+} from "@/lib/avisos";
 import TarjetaEvento from "./TarjetaEvento";
 
 // =====================================================
@@ -31,6 +50,12 @@ export default function ZonaMiembros({ sesion }: Props) {
   const [ultimaCarga, setUltimaCarga] = useState<number | null>(null);
   // null hasta montar en el cliente (evita diferencias servidor/cliente al hidratar).
   const [ahora, setAhora] = useState<number | null>(null);
+  const [aportes, setAportes] = useState<Aporte[] | null>(null);
+  const [avisosOn, setAvisosOn] = useState(false);
+  const [permisoNotif, setPermisoNotif] = useState<string>("default");
+  /** Umbrales ya disparados en esta sesión: "tipo:resultadoMs:umbral". */
+  const disparadosRef = useRef<Set<string>>(new Set());
+  const tituloOriginalRef = useRef<string | null>(null);
 
   const recargar = useCallback(async () => {
     try {
@@ -38,6 +63,7 @@ export default function ZonaMiembros({ sesion }: Props) {
       setDatos(d);
       setError(null);
       setUltimaCarga(Date.now());
+      contarAportes().then(setAportes).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar los registros.");
     }
@@ -63,6 +89,98 @@ export default function ZonaMiembros({ sesion }: Props) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [recargar]);
+
+  // Preferencia de avisos guardada.
+  useEffect(() => {
+    setAvisosOn(avisosActivados());
+    setPermisoNotif(permisoNotificaciones());
+  }, []);
+
+  async function toggleAvisos() {
+    const nuevo = !avisosOn;
+    setAvisosOn(nuevo);
+    guardarAvisos(nuevo);
+    if (nuevo) {
+      desbloquearSonido(); // el click desbloquea el audio (y suena un beep de prueba)
+      const ok = await pedirPermisoNotificaciones();
+      setPermisoNotif(ok ? "granted" : permisoNotificaciones());
+    }
+  }
+
+  // Disparo de avisos: en cada tick mira los tres eventos y, al cruzar un
+  // umbral (15 min · 5 min · momento exacto), avisa UNA vez por umbral.
+  useEffect(() => {
+    if (ahora === null || !datos) return;
+    for (const config of EVENTOS) {
+      const registro = datos.vigentes[config.tipo];
+      if (!registro) continue;
+      const { estado } = vistaDeRegistro(config, registro, ahora);
+
+      // El umbral vigente: el más urgente que aplique.
+      let umbral: number | null = null;
+      if (estado.listo) {
+        if (-estado.faltaSeg <= 120) umbral = 0; // recién abrió/respawneó
+      } else {
+        for (const m of AVISOS_MIN) {
+          if (estado.faltaSeg <= m * 60) umbral = m;
+        }
+      }
+      if (umbral === null) continue;
+
+      const clave = `${config.tipo}:${estado.resultadoMs}:${umbral}`;
+      if (disparadosRef.current.has(clave)) continue;
+      // Marcar también los umbrales menos urgentes para no encadenar beeps
+      // (ej.: si entrás faltando 4 min, suena solo el de 5, no el de 15).
+      for (const m of AVISOS_MIN) {
+        if (m >= umbral) disparadosRef.current.add(`${config.tipo}:${estado.resultadoMs}:${m}`);
+      }
+      disparadosRef.current.add(clave);
+
+      if (avisosOn) {
+        sonarAviso(umbral);
+        vibrar(umbral);
+        const titulo = `${config.icono} ${config.nombre}`;
+        const cuerpo =
+          umbral === 0
+            ? `¡${config.tipo === "gaion" ? "Abrió" : "Respawneó"}! (${estado.hms} hora servidor)`
+            : `${config.tipo === "gaion" ? "Abre" : "Respawnea"} a las ${estado.hms} hora servidor · faltan ${umbral} min`;
+        notificar(titulo, cuerpo, clave);
+      }
+    }
+  }, [ahora, datos, avisosOn]);
+
+  // Título de la pestaña: parpadea con el aviso más urgente cuando estás en otra pestaña.
+  useEffect(() => {
+    if (ahora === null || !datos) return;
+    if (tituloOriginalRef.current === null) tituloOriginalRef.current = document.title;
+    const original = tituloOriginalRef.current;
+
+    let masUrgente: { texto: string; falta: number } | null = null;
+    for (const config of EVENTOS) {
+      const registro = datos.vigentes[config.tipo];
+      if (!registro) continue;
+      const { estado } = vistaDeRegistro(config, registro, ahora);
+      let texto: string | null = null;
+      if (estado.listo && -estado.faltaSeg <= 300) {
+        texto = `🔥 ¡${config.nombre} AHORA!`;
+      } else if (!estado.listo && estado.aviso !== null) {
+        texto = `⚠ ${config.nombre} en ${Math.max(1, Math.ceil(estado.faltaSeg / 60))} min`;
+      }
+      if (texto !== null && (masUrgente === null || estado.faltaSeg < masUrgente.falta)) {
+        masUrgente = { texto, falta: estado.faltaSeg };
+      }
+    }
+
+    if (masUrgente === null || !document.hidden) {
+      document.title = original;
+      return;
+    }
+    // Parpadeo: alterna con el tick de 1 s usando la paridad del segundo.
+    document.title = Math.floor(ahora / 1000) % 2 === 0 ? masUrgente.texto : original;
+    return () => {
+      document.title = original;
+    };
+  }, [ahora, datos]);
 
   async function borrar(id: string) {
     if (!confirm("¿Borrar este registro? Solo el admin puede hacerlo.")) return;
@@ -113,6 +231,34 @@ export default function ZonaMiembros({ sesion }: Props) {
             </button>
           </div>
         )}
+
+        {/* ============ Avisos ============ */}
+        <div className="mb-4 sm:mb-6 rounded-lg border border-border-base bg-bg-card/50 p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="font-body text-sm text-text-primary">
+              🔔 Avisos a los <span className="text-luck-gold font-bold">15</span> y{" "}
+              <span className="text-luck-gold font-bold">5</span> min, y al abrir/respawnear
+            </p>
+            <p className="font-body text-[11px] text-text-muted mt-0.5">
+              {avisosOn
+                ? permisoNotif === "granted"
+                  ? "Sonido ✓ · notificación del sistema ✓ (funciona con la pestaña en segundo plano; con el navegador cerrado no)"
+                  : "Sonido ✓ · sin permiso de notificaciones: solo suena con esta pestaña abierta"
+                : "Activalos para que suene y te llegue una notificación. La tarjeta y el título de la pestaña avisan igual."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleAvisos}
+            className={`shrink-0 px-4 py-2 rounded font-body text-xs uppercase tracking-widest border transition-colors ${
+              avisosOn
+                ? "bg-success-green/15 text-success-green border-success-green/50 hover:bg-success-green/25"
+                : "border-border-strong text-text-secondary hover:border-neon-cyan hover:text-neon-cyan"
+            }`}
+          >
+            {avisosOn ? "Activados ✓" : "Activar"}
+          </button>
+        </div>
 
         {/* ============ Las tres tarjetas ============ */}
         <div className="space-y-4 sm:space-y-6">
@@ -192,6 +338,46 @@ export default function ZonaMiembros({ sesion }: Props) {
           )}
         </section>
 
+        {/* ============ Ranking de aportes ============ */}
+        <section className="mt-4 gamer-card rounded-lg p-5 sm:p-6">
+          <h2 className="font-display font-bold text-base mb-1 text-text-primary">🏆 Ranking de aportes</h2>
+          <p className="font-body text-[11px] text-text-muted mb-3">
+            Quién compartió más info (registros cargados de Gaion, Kundun y Cryonox, historial completo).
+          </p>
+          {aportes === null ? (
+            <p className="font-body text-sm text-text-muted animate-pulse">Cargando…</p>
+          ) : aportes.length === 0 ? (
+            <p className="font-body text-sm text-text-muted">Todavía no hay registros. El primero se lleva el 🥇.</p>
+          ) : (
+            <ol className="space-y-1.5">
+              {aportes.slice(0, 10).map((a, i) => {
+                const medalla = ["🥇", "🥈", "🥉"][i] ?? null;
+                const esYo = a.personaje === sesion.personaje;
+                return (
+                  <li
+                    key={a.personaje}
+                    className={`flex items-center gap-3 rounded px-3 py-2 font-body text-sm ${
+                      esYo ? "bg-neon-cyan/10 border border-neon-cyan/30" : "bg-bg-card/40"
+                    }`}
+                  >
+                    <span className="w-7 text-center font-numeric text-text-muted">
+                      {medalla ?? `${i + 1}º`}
+                    </span>
+                    <span className={`flex-1 truncate font-bold ${esYo ? "text-neon-cyan" : "text-text-primary"}`}>
+                      {a.personaje}
+                      {esYo && <span className="font-normal text-text-muted"> (vos)</span>}
+                    </span>
+                    <span className="font-numeric text-text-secondary tabular-nums">
+                      {a.cantidad.toLocaleString("es-AR")}{" "}
+                      <span className="text-[11px] text-text-muted">{a.cantidad === 1 ? "registro" : "registros"}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
+
         {/* ============ Cómo funciona ============ */}
         <section className="mt-4 rounded-lg border border-dashed border-border-strong p-5 sm:p-6">
           <ul className="font-body text-sm text-text-secondary space-y-2.5">
@@ -213,9 +399,11 @@ export default function ZonaMiembros({ sesion }: Props) {
             <li className="flex gap-3">
               <span className="text-neon-cyan font-bold">·</span>
               <span>
-                Cuando faltan <span className="text-text-primary">15</span> y{" "}
-                <span className="text-text-primary">5</span> minutos la tarjeta se resalta. Avisos con la
-                pestaña cerrada: próximamente.
+                A los <span className="text-text-primary">15</span> y{" "}
+                <span className="text-text-primary">5</span> minutos (y al abrir/respawnear) la tarjeta se
+                resalta y el título de la pestaña parpadea. Con &quot;Activar&quot; además suena y llega una
+                notificación aunque estés en otra pestaña. Con el navegador cerrado no hay aviso (para eso
+                vendrá el bot).
               </span>
             </li>
           </ul>

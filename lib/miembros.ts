@@ -169,6 +169,33 @@ export async function insertarRegistro(input: EventoRegistroInsert): Promise<voi
   if (error) throw new Error(error.message);
 }
 
+export interface Aporte {
+  personaje: string;
+  cantidad: number;
+}
+
+/**
+ * Ranking de aportes: cuántos registros cargó cada uno (todos los tipos,
+ * historial completo). Se cuenta en el cliente; con miles de registros
+ * seguirá siendo liviano porque solo trae una columna.
+ */
+export async function contarAportes(): Promise<Aporte[]> {
+  const { data, error } = await supabase
+    .from("eventos_registros")
+    .select("cargado_por_personaje")
+    .limit(5000);
+  if (error) throw new Error(error.message);
+
+  const conteo = new Map<string, number>();
+  for (const fila of (data ?? []) as { cargado_por_personaje: string }[]) {
+    const p = fila.cargado_por_personaje;
+    conteo.set(p, (conteo.get(p) ?? 0) + 1);
+  }
+  return Array.from(conteo, ([personaje, cantidad]) => ({ personaje, cantidad })).sort(
+    (a, b) => b.cantidad - a.cantidad || a.personaje.localeCompare(b.personaje),
+  );
+}
+
 export async function eliminarRegistro(id: string): Promise<void> {
   const { error } = await supabase.from("eventos_registros").delete().eq("id", id);
   if (error) throw new Error(error.message);

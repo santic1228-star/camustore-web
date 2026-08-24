@@ -5,18 +5,16 @@ import CampoHud from "@/components/ui/CampoHud";
 import { mascaraHora, parseHoraServidor } from "@/lib/tiempo";
 import { mascaraStandby, parseStandby } from "@/lib/gaion";
 import {
-  aperturaVigenteGaion,
   epochDesdeHoraServidor,
-  estadoDe,
   etiquetaDiaServidor,
   fechaCortaServidor,
   hmServidor,
   mensajeRegistro,
   nuevoRegistroBoss,
   nuevoRegistroGaion,
-  siguientesGaionMs,
   textoFaltaRegistro,
   textoHace,
+  vistaDeRegistro,
   type EventoConfig,
   type RegistroNuevo,
 } from "@/lib/registros";
@@ -46,17 +44,8 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
   // ---------- Estado del registro vigente ----------
   const vista = useMemo(() => {
     if (!registro || ahora === null) return null;
-    const resultadoMs = Date.parse(registro.resultado_at);
-    if (esGaion) {
-      const vig = aperturaVigenteGaion(resultadoMs, ahora);
-      return {
-        estado: estadoDe(vig.ms, ahora),
-        saltos: vig.saltos,
-        siguientes: siguientesGaionMs(vig.ms, 3),
-      };
-    }
-    return { estado: estadoDe(resultadoMs, ahora), saltos: 0, siguientes: [] as number[] };
-  }, [registro, ahora, esGaion]);
+    return vistaDeRegistro(config, registro, ahora);
+  }, [registro, ahora, config]);
 
   const mostrarForm = formAbierto || !registro;
 
