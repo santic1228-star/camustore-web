@@ -226,13 +226,13 @@ export default function ConsignarClient() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <FieldLabel>Nombre de tu personaje</FieldLabel>
-            <TextInput value={personaje} onChange={setPersonaje} placeholder="CamusDoge" />
+            <TextInput value={personaje} onChange={setPersonaje} placeholder="DarkLord99" />
           </div>
           <div>
             <FieldLabel>Tu WhatsApp</FieldLabel>
-            <TextInput value={whatsapp} onChange={setWhatsapp} placeholder="3515153481" />
+            <TextInput value={whatsapp} onChange={setWhatsapp} placeholder="+54 9 351 1234567" />
             <p className="text-[10px] font-body text-text-muted mt-1.5">
-              Con característica, sin 0 ni 15. Camus te contacta ahí.
+              Con código de país (+54 9 para Argentina). Camus te contacta ahí.
             </p>
           </div>
         </div>
