@@ -10,6 +10,7 @@ export default function Navbar() {
   const [abierto, setAbierto] = useState(false);
   const pathname = usePathname();
   const headerRef = useRef<HTMLElement>(null);
+  const punteroRef = useRef<string>("mouse");
   const menuId = useId();
 
   const enHerramientas =
@@ -61,16 +62,31 @@ export default function Navbar() {
           <NavLink href="/items">Catálogo</NavLink>
           <NavLink href="/cotizador">Cotizador</NavLink>
           <NavLink href="/consignar">Consignar</NavLink>
-          <button
-            type="button"
+          <Link
+            href="/herramientas"
             aria-haspopup="menu"
             aria-expanded={abierto}
             aria-controls={menuId}
-            onClick={() => setAbierto((v) => !v)}
+            // Con qué se hizo el último gesto: define qué hace el click.
+            onPointerDown={(e) => {
+              punteroRef.current = e.pointerType;
+            }}
+            onKeyDown={() => {
+              punteroRef.current = "teclado";
+            }}
             // Abrir al pasar el mouse solo en PC: en el celu un toque también
             // dispara "enter" antes del click y abriría/cerraría en el mismo toque.
             onPointerEnter={(e) => {
               if (e.pointerType === "mouse") setAbierto(true);
+            }}
+            // En el celu, el toque abre/cierra el menú (dos toques a cualquier
+            // herramienta; el hub queda en "Todas las herramientas →").
+            // Con mouse o teclado, el click navega al índice /herramientas.
+            onClick={(e) => {
+              if (punteroRef.current === "touch") {
+                e.preventDefault();
+                setAbierto((v) => !v);
+              }
             }}
             className={`px-2 sm:px-3 py-1.5 rounded hover:text-neon-cyan hover:bg-bg-card-hover transition-colors font-body font-medium flex items-center gap-1 ${
               abierto || enHerramientas ? "text-neon-cyan" : "text-text-secondary"
@@ -83,7 +99,7 @@ export default function Navbar() {
             >
               ▾
             </span>
-          </button>
+          </Link>
         </nav>
 
         {/* Panel del desplegable: hermano de <nav> (no hijo) para que el
