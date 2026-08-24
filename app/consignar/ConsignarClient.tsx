@@ -102,7 +102,12 @@ export default function ConsignarClient() {
           whatsapp: waDigits,
           notas: notas.trim() || null,
         });
-        if (e1) throw new Error("No se pudo crear la consignación. Esperá un momento y probá de nuevo.");
+        if (e1) {
+          console.error("consignaciones insert:", e1);
+          throw new Error(
+            `No se pudo crear la consignación. Detalle técnico: ${e1.message}${e1.code ? ` (${e1.code})` : ""}. Sacale captura y avisale a Camus.`,
+          );
+        }
         setCabeceraId(id);
       }
 
@@ -113,7 +118,12 @@ export default function ConsignarClient() {
         precio_sugerido: l.precioVenta,
       }));
       const { error: e2 } = await supabase.from("consignaciones_items").insert(payload);
-      if (e2) throw new Error('Se creó la consignación pero falló la carga de los ítems. Tocá "Enviar" de nuevo para reintentar.');
+      if (e2) {
+        console.error("consignaciones_items insert:", e2);
+        throw new Error(
+          `Se creó la consignación pero falló la carga de los ítems. Detalle técnico: ${e2.message}${e2.code ? ` (${e2.code})` : ""}. Tocá "Enviar" de nuevo para reintentar.`,
+        );
+      }
 
       setLoteEnviado(lote);
       setEnviadaId(id);
