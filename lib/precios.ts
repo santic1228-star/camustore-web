@@ -1,103 +1,154 @@
 /**
- * Reglas de cálculo de precio de COMPRA al usuario.
+ * Reglas de cálculo de precio — CamuStore.
+ * =======================================
+ *
+ * MODELO DE TRES NÚMEROS (DECISIONES §9, 24/08/2026):
+ *
+ *   1. REFERENCIA  `precioReferencia*()`  — la fórmula pura sobre los atributos.
+ *   2. COMPRA      `precio*()`            — referencia × ajuste de compra.
+ *   3. VENTA       `precioVenta*()`       — referencia × multiplicador.
+ *
+ * La venta se calcula SIEMPRE desde la referencia, NUNCA desde la compra. Por
+ * eso bajar lo que le pagás al jugador (globalmente con el ajuste, o a mano con
+ * el override del admin) no arrastra el precio de venta hacia abajo.
+ *
+ * Todos los coeficientes viven en `lib/precios-config.ts` y son editables desde
+ * el admin. Cada función recibe la config; si no se le pasa, usa los defaults
+ * (que son los valores históricos, así nada se rompe si la DB está vacía).
+ *
  * Todas las funciones devuelven el precio en WC, o null si el item no se compra.
  */
+
+import {
+  CONFIG_PRECIOS_DEFAULT,
+  aplicarAjusteCompra,
+  type ConfigPrecios,
+  type GemaTipo,
+  type JewelTipo,
+  type NombreEscudo,
+  type SeedTipo,
+  type TipoEquipo3,
+  type TipoJoya,
+} from "./precios-config";
+
+// Re-exports para que los imports viejos (`from "@/lib/precios"`) sigan andando.
+export type { JewelTipo, SeedTipo, GemaTipo, TipoJoya, NombreEscudo, TipoEquipo3 };
+export type { ConfigPrecios };
+export { CONFIG_PRECIOS_DEFAULT };
 
 // =====================================================
 // HELPERS
 // =====================================================
+
 /**
- * Interpolación lineal entre el precio base (niveles 0-9) y el precio máximo (nivel 15).
+ * Interpolación lineal entre el precio base (niveles 0-9) y el máximo (nivel 15).
  * - Niveles 0-9: precio base
- * - Nivel 10: base + 1/6 del salto a 15
- * - Nivel 11: base + 2/6 del salto a 15
+ * - Nivel 10: base + 1/6 del salto a 15 (el divisor es configurable)
  * - ... y así hasta nivel 15 = precio máximo
  */
-function precioPorNivel(base: number, baseLvl15: number, nivel: number): number {
+export function precioPorNivel(
+  base: number,
+  baseLvl15: number,
+  nivel: number,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number {
   if (nivel <= 9) return base;
   if (nivel >= 15) return baseLvl15;
   const pasos = nivel - 9; // 1, 2, 3, 4, 5
-  const incrementoPorPaso = (baseLvl15 - base) / 6;
+  const divisor = cfg.curva.divisorInterpolacion || 6;
+  const incrementoPorPaso = (baseLvl15 - base) / divisor;
   return base + incrementoPorPaso * pasos;
+}
+
+/** Base y máximo de un tipo de equipo, según la config. */
+function rangoDeTipo(tipo: TipoEquipo3, cfg: ConfigPrecios): { base: number; max: number } {
+  if (tipo === "s3") return cfg.bases.s3;
+  if (tipo === "380") return cfg.bases.t380;
+  return cfg.bases.t400;
+}
+
+/** Sockets que efectivamente suman precio (tope configurable). */
+function socketsComputables(socket: number | null | undefined, cfg: ConfigPrecios): number {
+  if (!socket || socket <= 0) return 0;
+  return Math.min(cfg.modificadores.socketsMax, socket);
 }
 
 // =====================================================
 // ARMADURAS
 // =====================================================
 // HP + DD + REF indispensables (un solo checkbox). Sin las 3 → no se compra.
-// Reglas de luck/sockets según tipo:
-//   - s3:  sin luck → NO se compra.
-//   - 380: sin luck → NO se compra.
-//   - 400: sin luck → ×0.25. Requiere 2 o 3 sockets (1 o 0 sockets → NO se compra).
-// Sockets (solo 400) → +600 WC por socket, sumado AL FINAL.
+// s3 / 380: sin luck → NO se compra. 400: sin luck → penalidad configurable
+// y mínimo de sockets configurable. Sockets (solo 400) suman plano al final.
 
 export interface ArmaduraInput {
   hpDdRef: boolean;
   nivel: number;          // 0-15
-  tipo: "s3" | "380" | "400" | null;
-  socket: number | null;  // 2-3 (solo tipo 400, mínimo 2). Con forzarAdmin acepta 1.
+  tipo: TipoEquipo3 | null;
+  socket: number | null;  // solo tipo 400. Con forzarAdmin se saltea el mínimo.
   luck: boolean;
-  /** Saltea validación de sockets mínimos (uso solo desde admin para cargar items raros). */
+  /** Saltea validación de sockets mínimos (uso solo desde admin para items raros). */
   forzarAdmin?: boolean;
 }
 
-export function precioArmadura(input: ArmaduraInput): number | null {
+/** Precio de REFERENCIA de una armadura (fórmula pura, sin ajuste de compra). */
+export function precioReferenciaArmadura(
+  input: ArmaduraInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   const { hpDdRef, nivel, tipo, socket, luck, forzarAdmin } = input;
+  const req = cfg.requisitos.armadura;
 
   if (!tipo) return null;
-  if (!hpDdRef) return null;
+  if (req.exigeHpDdRef && !hpDdRef) return null;
 
-  // s3 y 380: sin luck no se compran
-  if ((tipo === "s3" || tipo === "380") && !luck) return null;
+  if (tipo === "s3" && req.s3ExigeLuck && !luck) return null;
+  if (tipo === "380" && req.t380ExigeLuck && !luck) return null;
 
-  // 400: requiere mínimo 2 sockets (salvo carga manual desde admin)
-  if (tipo === "400" && !forzarAdmin && (!socket || socket < 2)) return null;
-
-  // Precio base (lvl 0-9) y precio a nivel 15
-  let base = 0, baseLvl15 = 0;
-  if (tipo === "s3") {
-    base = 500;
-    baseLvl15 = 1500;
-  } else if (tipo === "380") {
-    base = 800;
-    baseLvl15 = 2400;
-  } else if (tipo === "400") {
-    base = 1000;
-    baseLvl15 = 3000;
+  if (tipo === "400" && !forzarAdmin) {
+    const min = req.t400MinSockets;
+    if (min > 0 && (!socket || socket < min)) return null;
   }
 
-  const precioPorLvl = precioPorNivel(base, baseLvl15, nivel);
-  const factorLuck = luck ? 1 : 0.25;
+  const { base, max } = rangoDeTipo(tipo, cfg);
+  const precioPorLvl = precioPorNivel(base, max, nivel, cfg);
+  const factorLuck = luck ? 1 : cfg.modificadores.sinLuck;
   let precio = precioPorLvl * factorLuck;
 
-  // Bonus por socket (solo aplica a 400, plano al final, máximo 3 sockets)
-  if (tipo === "400" && socket && socket > 0) {
-    const socketsValidos = Math.min(3, socket);
-    precio += socketsValidos * 600;
+  // Bonus por socket: solo 400, plano al final
+  if (tipo === "400") {
+    precio += socketsComputables(socket, cfg) * cfg.modificadores.socketArmadura;
   }
 
   return Math.round(precio);
 }
 
+/** Precio de COMPRA de una armadura (referencia × ajuste de compra). */
+export function precioArmadura(
+  input: ArmaduraInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  return aplicarAjusteCompra(precioReferenciaArmadura(input, cfg), cfg, "armadura", input.tipo);
+}
+
+/** Precio de VENTA de una armadura (referencia × multiplicador del tipo). */
+export function precioVentaArmadura(
+  input: ArmaduraInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  const ref = precioReferenciaArmadura(input, cfg);
+  if (ref === null || !input.tipo) return null;
+  return Math.round(ref * cfg.multVenta.armaduraArma[input.tipo]);
+}
+
 // =====================================================
 // ARMAS
 // =====================================================
-// OBLIGATORIAS SIEMPRE: exe rate 10% + dmg 2%. Sin ambas → no se compra.
+// OBLIGATORIAS SIEMPRE: exe rate 10% + dmg 2%.
 // Tercera opción: speed +7 O dmg lvl/20 (mutex, una sola).
-//
-// Por tipo:
-//   s3:  requiere las 3 opciones (rate + 2% + tercera) + luck + skill. Sin eso → no se compra. ×1.0
-//   380: requiere las 3 opciones (rate + 2% + tercera) + luck + skill. Sin eso → no se compra. ×1.0
-//   400: rate + 2% obligatorias siempre.
-//        - 3 opciones (rate + 2% + tercera) → ×1.0. Sin skill → ×0.25 (penalidad).
-//        - 2 opciones (rate + 2%, sin tercera) → ×0.60, PERO solo si tiene
-//          luck + skill + mínimo 2 sockets. Si no cumple → no se compra.
-//
-// Modificadores:
-//   Sin skill → ×0.25 (en los casos donde el arma igual se compra).
-//   Sin luck → s3/380 no se compran; en 400 con 2 opciones luck es requisito.
-//   +50% sobre precio base (×1.5 markup de armas).
-//   Sockets (solo 400) → +1.200 WC por socket, sumado AL FINAL.
+//   s3 / 380: exigen las 3 opciones + luck + skill.
+//   400 con tercera → factor 1. Sin tercera → factor configurable (0.6),
+//        y exige luck + skill + mínimo de sockets.
+// Markup de armas y bonus por socket configurables.
 
 export interface ArmaInput {
   exeRate: boolean;
@@ -105,92 +156,83 @@ export interface ArmaInput {
   dmg2pct: boolean;
   speed7: boolean;
   nivel: number;
-  tipo: "s3" | "380" | "400" | null;
+  tipo: TipoEquipo3 | null;
   socket: number | null;
   luck: boolean;
   skill: boolean;
-  /** Saltea validación de sockets mínimos (uso solo desde admin para cargar items raros). */
+  /** Saltea validación de sockets mínimos (uso solo desde admin para items raros). */
   forzarAdmin?: boolean;
 }
 
-export function precioArma(input: ArmaInput): number | null {
+/** Precio de REFERENCIA de un arma (fórmula pura, sin ajuste de compra). */
+export function precioReferenciaArma(
+  input: ArmaInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   const { exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill, forzarAdmin } = input;
+  const req = cfg.requisitos.arma;
 
   if (!tipo) return null;
+  if (req.exigeExeRate && !exeRate) return null;
+  if (req.exigeDmg2 && !dmg2pct) return null;
 
-  // Obligatorias siempre: exe rate + dmg 2%
-  if (!exeRate || !dmg2pct) return null;
-
-  // Tercera opción presente (speed7 o dmglvl20)
   const tieneTercera = speed7 || dmgLvl20;
-  const socketsValidos = tipo === "400" && socket ? Math.min(3, socket) : 0;
+  const sockets = tipo === "400" ? socketsComputables(socket, cfg) : 0;
 
-  // Determinar factor de opciones según tipo
   let factorOpciones: number;
 
   if (tipo === "s3" || tipo === "380") {
-    // Requieren las 3 opciones + luck + skill
-    if (!tieneTercera) return null;
-    if (!luck) return null;
-    if (!skill) return null;
+    if (req.s3_380ExigeTercera && !tieneTercera) return null;
+    if (req.s3_380ExigeLuckSkill && (!luck || !skill)) return null;
     factorOpciones = 1;
   } else {
     // tipo 400
     if (tieneTercera) {
-      // 3 opciones → ×1.0
       factorOpciones = 1;
     } else {
-      // 2 opciones (rate + 2%) → ×0.60 solo si luck + skill + 2 sockets (salvo admin)
-      if (!luck || !skill) return null;
-      if (!forzarAdmin && socketsValidos < 2) return null;
-      factorOpciones = 0.6;
+      if (req.t400SinTerceraExigeLuckSkill && (!luck || !skill)) return null;
+      if (!forzarAdmin && sockets < req.t400SinTerceraMinSockets) return null;
+      factorOpciones = cfg.modificadores.sinTercera400;
     }
   }
 
-  let base = 0, baseLvl15 = 0;
-  if (tipo === "s3") {
-    base = 500;
-    baseLvl15 = 1500;
-  } else if (tipo === "380") {
-    base = 800;
-    baseLvl15 = 2400;
-  } else if (tipo === "400") {
-    base = 1000;
-    baseLvl15 = 3000;
-  }
+  const { base, max } = rangoDeTipo(tipo, cfg);
+  const precioPorLvl = precioPorNivel(base, max, nivel, cfg);
+  const factorLuck = luck ? 1 : cfg.modificadores.sinLuck;
+  const factorSkill = skill ? 1 : cfg.modificadores.sinSkill;
 
-  const precioPorLvl = precioPorNivel(base, baseLvl15, nivel);
-  const factorLuck = luck ? 1 : 0.25;
-  const factorSkill = skill ? 1 : 0.25;
+  let precio = precioPorLvl * factorLuck * factorSkill * cfg.modificadores.markupArma * factorOpciones;
 
-  // Precio base × luck × skill × 1.5 (markup) × factor opciones
-  let precio = precioPorLvl * factorLuck * factorSkill * 1.5 * factorOpciones;
-
-  // Bonus por socket (solo 400, plano al final)
-  if (socketsValidos > 0) {
-    precio += socketsValidos * 1200;
+  if (sockets > 0) {
+    precio += sockets * cfg.modificadores.socketArma;
   }
 
   return Math.round(precio);
 }
 
+/** Precio de COMPRA de un arma (referencia × ajuste de compra). */
+export function precioArma(
+  input: ArmaInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  return aplicarAjusteCompra(precioReferenciaArma(input, cfg), cfg, "arma", input.tipo);
+}
+
+/** Precio de VENTA de un arma (referencia × multiplicador del tipo). */
+export function precioVentaArma(
+  input: ArmaInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  const ref = precioReferenciaArma(input, cfg);
+  if (ref === null || !input.tipo) return null;
+  return Math.round(ref * cfg.multVenta.armaduraArma[input.tipo]);
+}
+
 // =====================================================
 // ESCUDOS
 // =====================================================
-// Escudos: muy escasos. Solo existen en tipo 400.
-// Reglas iguales a ARMADURA 400 + skill como modificador + markup de ARMA:
-//   - HP + DD + REF obligatorio (sin eso → no se compra).
-//   - Base lvl 0-9: 1.000 · lvl 15: 3.000 (interpolación 10-14).
-//   - Sin luck → ×0.25.
-//   - Sin skill → ×0.25 (modificador, como en armas).
-//   - Markup ×1.5 (como armas).
-//   - Mínimo 2 sockets (0 o 1 → no se compra). +1200 WC por socket (como armas).
-// Venta = compra × 6 (más que armadura/arma 400 por ser escasos).
-//
-// Nombres (desplegable): guardian (Wizard), crimson_glory (Knight),
-//   salamander (Gladiator), cross (Lord).
-
-export type NombreEscudo = "guardian" | "crimson_glory" | "salamander" | "cross";
+// Muy escasos. Solo existen en tipo 400. Reglas de armadura 400 + skill como
+// modificador + markup de arma. Venta con su propio multiplicador (×6).
 
 export const ESCUDO_NOMBRES: { value: NombreEscudo; label: string }[] = [
   { value: "guardian", label: "Guardian Shield (Wizard)" },
@@ -205,44 +247,61 @@ export function escudoLabel(nombre: string | null): string {
   return found ? found.label : "Escudo";
 }
 
-export const ESCUDO_MULT_VENTA = 6;
-
 export interface EscudoInput {
   hpDdRef: boolean;
   nivel: number;          // 0-15
-  socket: number | null;  // 2-3 (mínimo 2). Con forzarAdmin acepta 1.
+  socket: number | null;
   luck: boolean;
   skill: boolean;
-  /** Saltea validación de sockets mínimos (uso solo desde admin para cargar items raros). */
+  /** Saltea validación de sockets mínimos (uso solo desde admin para items raros). */
   forzarAdmin?: boolean;
 }
 
-/** Precio de COMPRA de un escudo. null si no se compra. */
-export function precioEscudo(input: EscudoInput): number | null {
+/** Precio de REFERENCIA de un escudo (fórmula pura, sin ajuste de compra). */
+export function precioReferenciaEscudo(
+  input: EscudoInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   const { hpDdRef, nivel, socket, luck, skill, forzarAdmin } = input;
-  if (!hpDdRef) return null;
-  if (!socket || socket < 1) return null;  // necesita al menos 1 socket
-  if (!forzarAdmin && socket < 2) return null;  // cotizador exige 2; admin acepta 1
+  const req = cfg.requisitos.escudo;
 
-  const precioPorLvl = precioPorNivel(1000, 3000, nivel);
-  const factorLuck = luck ? 1 : 0.25;
-  const factorSkill = skill ? 1 : 0.25;
-  let precio = precioPorLvl * factorLuck * factorSkill * 1.5;  // markup ×1.5 igual que armas
+  if (req.exigeHpDdRef && !hpDdRef) return null;
+  if (!socket || socket < 1) return null;                       // necesita al menos 1 socket
+  if (!forzarAdmin && socket < req.minSockets) return null;     // el cotizador exige el mínimo
 
-  const socketsValidos = Math.min(3, socket);
-  precio += socketsValidos * 1200;  // +1200 WC por socket (igual que armas)
+  const { base, max } = cfg.bases.escudo;
+  const precioPorLvl = precioPorNivel(base, max, nivel, cfg);
+  const factorLuck = luck ? 1 : cfg.modificadores.sinLuck;
+  const factorSkill = skill ? 1 : cfg.modificadores.sinSkill;
+
+  let precio = precioPorLvl * factorLuck * factorSkill * cfg.modificadores.markupEscudo;
+  precio += socketsComputables(socket, cfg) * cfg.modificadores.socketEscudo;
 
   return Math.round(precio);
 }
 
-/** Precio de VENTA de un escudo (compra × 6). */
-export function precioVentaEscudo(input: EscudoInput): number | null {
-  const compra = precioEscudo(input);
-  if (compra === null) return null;
-  return Math.round(compra * ESCUDO_MULT_VENTA);
+/** Precio de COMPRA de un escudo. null si no se compra. */
+export function precioEscudo(
+  input: EscudoInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  return aplicarAjusteCompra(precioReferenciaEscudo(input, cfg), cfg, "escudo", "400");
 }
-// Las tablas de precios definen el valor base (lvl 0-9) y el valor a lvl 15.
-// Entre lvl 10 y 14 se interpola linealmente.
+
+/** Precio de VENTA de un escudo (referencia × multiplicador de escudos). */
+export function precioVentaEscudo(
+  input: EscudoInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  const ref = precioReferenciaEscudo(input, cfg);
+  if (ref === null) return null;
+  return Math.round(ref * cfg.multVenta.escudo);
+}
+
+// =====================================================
+// ALAS
+// =====================================================
+// No tienen tipo s3/380/400. El precio depende de cuántas opciones y del luck.
 
 export interface AlasInput {
   ignore: boolean;
@@ -253,43 +312,64 @@ export interface AlasInput {
 }
 
 /**
- * Devuelve [base, lvl15] según las opciones y luck.
- * Retorna null si la combinación no se compra.
+ * Devuelve base y máximo según las opciones y luck.
+ * null si la combinación no se compra.
  */
-function alasPrecioBaseYMax(
+function alasRango(
   nOpc: number,
-  luck: boolean
-): [number, number] | null {
-  if (nOpc === 0) return null;
-  if (nOpc === 3 && luck)  return [25000, 60000];
-  if (nOpc === 3 && !luck) return [20000, 40000];
-  if (nOpc === 2 && luck)  return [10000, 16000];
-  if (nOpc === 1 && luck)  return [ 2000,  5000];
-  // <3 sin luck → no se compra
-  return null;
+  luck: boolean,
+  cfg: ConfigPrecios
+): { base: number; max: number } | null {
+  const req = cfg.requisitos.alas;
+  if (nOpc < req.minOpciones) return null;
+
+  if (nOpc >= 3) {
+    if (luck) return cfg.alas.tresConLuck;
+    return req.compraTresSinLuck ? cfg.alas.tresSinLuck : null;
+  }
+  // 1 o 2 opciones
+  if (!luck && req.exigeLuckConMenosDe3) return null;
+  if (nOpc === 2) return cfg.alas.dosConLuck;
+  return cfg.alas.unaConLuck;
 }
 
-export function precioAlas(input: AlasInput): number | null {
+/** Precio de REFERENCIA de unas alas (fórmula pura, sin ajuste de compra). */
+export function precioReferenciaAlas(
+  input: AlasInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   const { ignore, returnOpc, lifeRecovery, luck, nivel } = input;
   const nOpc = [ignore, returnOpc, lifeRecovery].filter(Boolean).length;
 
-  const baseYMax = alasPrecioBaseYMax(nOpc, luck);
-  if (!baseYMax) return null;
+  const rango = alasRango(nOpc, luck, cfg);
+  if (!rango) return null;
 
-  const [base, lvl15] = baseYMax;
-  return Math.round(precioPorNivel(base, lvl15, nivel));
+  return Math.round(precioPorNivel(rango.base, rango.max, nivel, cfg));
+}
+
+/** Precio de COMPRA de unas alas. */
+export function precioAlas(
+  input: AlasInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  return aplicarAjusteCompra(precioReferenciaAlas(input, cfg), cfg, "ala");
+}
+
+/** Precio de VENTA de unas alas (referencia × multiplicador de alas). */
+export function precioVentaAlas(
+  input: AlasInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  const ref = precioReferenciaAlas(input, cfg);
+  if (ref === null) return null;
+  return Math.round(ref * cfg.multVenta.ala);
 }
 
 // =====================================================
 // JEWELS
 // =====================================================
-// REGULARES: se compran en bundles de 30 unidades (campo `bundles`).
-// ESPECIALES: se compran por unidad individual (campo `cantidad`).
-// Tipo determina si es regular o especial.
-
-export type JewelTipo =
-  | "chaos" | "creation" | "soul" | "bless" | "harmony" | "life"  // regulares
-  | "socket" | "luck_jewel" | "skill_jewel" | "additional";        // especiales
+// REGULARES: se compran en bundles (campo `bundles`).
+// ESPECIALES: se compran por unidad individual.
 
 export const JEWEL_REGULARES: JewelTipo[] = ["chaos", "creation", "soul", "bless", "harmony", "life"];
 export const JEWEL_ESPECIALES: JewelTipo[] = ["socket", "luck_jewel", "skill_jewel", "additional"];
@@ -297,34 +377,6 @@ export const JEWEL_ESPECIALES: JewelTipo[] = ["socket", "luck_jewel", "skill_jew
 export function esJewelEspecial(tipo: JewelTipo): boolean {
   return JEWEL_ESPECIALES.includes(tipo);
 }
-
-/**
- * Precio de COMPRA (lo que pagás al jugador).
- * - Regulares: precio por bundle de 30.
- * - Especiales: precio por unidad individual.
- */
-export const JEWEL_PRECIOS: Record<JewelTipo, number> = {
-  chaos: 200,
-  creation: 250,
-  soul: 1000,
-  bless: 1000,
-  harmony: 350,
-  life: 250,
-  socket: 8000,
-  luck_jewel: 6000,
-  skill_jewel: 6000,
-  additional: 6000,
-};
-
-/**
- * Multiplicador de venta por tipo.
- * - Regulares: ×2.
- * - Especiales: ×2.5.
- */
-export const JEWEL_MULT_VENTA: Record<JewelTipo, number> = {
-  chaos: 2, creation: 2, soul: 2, bless: 2, harmony: 2, life: 2,
-  socket: 2.5, luck_jewel: 2.5, skill_jewel: 2.5, additional: 2.5,
-};
 
 export const JEWEL_LABELS: Record<JewelTipo, string> = {
   chaos: "Jewel of Chaos",
@@ -339,25 +391,52 @@ export const JEWEL_LABELS: Record<JewelTipo, string> = {
   additional: "Jewel of Additional",
 };
 
-/**
- * Precio total por una cantidad de BUNDLES de 30 jewels (regulares).
- */
-export function precioJewels(tipo: JewelTipo | null, bundles: number): number | null {
+/** Precio de REFERENCIA de una jewel (por bundle o por unidad, según tipo). */
+export function precioReferenciaJewel(
+  tipo: JewelTipo,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number {
+  return cfg.jewels.precios[tipo];
+}
+
+/** Precio de COMPRA unitario de una jewel (con ajuste de compra aplicado). */
+export function jewelPrecioCompra(
+  tipo: JewelTipo,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number {
+  return aplicarAjusteCompra(precioReferenciaJewel(tipo, cfg), cfg, "jewel") ?? 0;
+}
+
+/** Multiplicador de venta de una jewel según sea regular o especial. */
+export function jewelMultVenta(
+  tipo: JewelTipo,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number {
+  return esJewelEspecial(tipo) ? cfg.multVenta.jewelEspecial : cfg.multVenta.jewelRegular;
+}
+
+/** Precio de VENTA unitario de una jewel (referencia × multiplicador). */
+export function jewelPrecioVenta(
+  tipo: JewelTipo,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number {
+  return Math.round(precioReferenciaJewel(tipo, cfg) * jewelMultVenta(tipo, cfg));
+}
+
+/** Precio total de COMPRA por una cantidad de bundles (regulares) o unidades (especiales). */
+export function precioJewels(
+  tipo: JewelTipo | null,
+  bundles: number,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   if (!tipo) return null;
   if (bundles < 1) return null;
-  return JEWEL_PRECIOS[tipo] * bundles;
+  return jewelPrecioCompra(tipo, cfg) * bundles;
 }
 
 // =====================================================
 // SEEDS
 // =====================================================
-// Max Life: 35.000 (40.000 si Penta Sphere/ensamblada)
-// Damage Reduction: 40.000 (45.000 si Penta Sphere/ensamblada)
-// Penta: contenedor consumible, compra 5.000 (venta ×3.5 = 17.500)
-// Exc Dmg Rate: compra 500, venta HARDCODEADA 2.000
-// Crit Dmg Rate: compra 500, venta HARDCODEADA 2.000
-
-export type SeedTipo = "max_life" | "damage_reduction" | "penta" | "exc_dmg_rate" | "crit_dmg_rate";
 
 export const SEED_LABELS: Record<SeedTipo, string> = {
   max_life: "Max Life",
@@ -367,53 +446,64 @@ export const SEED_LABELS: Record<SeedTipo, string> = {
   crit_dmg_rate: "Crit Dmg Rate",
 };
 
-/** Tipos de seed que aceptan el modificador "ensamblada en Penta" (+5.000) */
+/** Tipos de seed que aceptan el modificador "ensamblada en Penta". */
 export const SEED_ACEPTA_PENTA: SeedTipo[] = ["max_life", "damage_reduction"];
 
-/** Precio de COMPRA de la seed. */
-export function precioSeed(tipo: SeedTipo | null, ensambladaPenta: boolean): number | null {
+/** Precio de REFERENCIA de una seed. */
+export function precioReferenciaSeed(
+  tipo: SeedTipo | null,
+  ensambladaPenta: boolean,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   if (!tipo) return null;
+  const s = cfg.seeds;
   switch (tipo) {
     case "max_life":
-      return ensambladaPenta ? 40000 : 35000;
+      return ensambladaPenta ? s.maxLifePenta : s.maxLife;
     case "damage_reduction":
-      return ensambladaPenta ? 45000 : 40000;
+      return ensambladaPenta ? s.dmgReductionPenta : s.dmgReduction;
     case "penta":
-      return 5000;
+      return s.penta;
     case "exc_dmg_rate":
-      return 500;
+      return s.excDmgRate;
     case "crit_dmg_rate":
-      return 500;
+      return s.critDmgRate;
   }
 }
 
+/** Precio de COMPRA de una seed. */
+export function precioSeed(
+  tipo: SeedTipo | null,
+  ensambladaPenta: boolean,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  return aplicarAjusteCompra(precioReferenciaSeed(tipo, ensambladaPenta, cfg), cfg, "seed");
+}
+
 /**
- * Precio de VENTA de la seed.
- * - max_life, damage_reduction → ×3.5 (regla general de seeds)
- * - penta → ×2.1 (rompe la regla)
- * - exc_dmg_rate, crit_dmg_rate → HARDCODEADO 2.000 (rompe la regla)
+ * Precio de VENTA de una seed.
+ * - max_life / damage_reduction → multiplicador general de seeds
+ * - penta → su propio multiplicador (rompe la regla)
+ * - exc/crit dmg rate → precio fijo configurable (rompe la regla)
  */
-export function precioVentaSeed(tipo: SeedTipo | null, ensambladaPenta: boolean): number | null {
+export function precioVentaSeed(
+  tipo: SeedTipo | null,
+  ensambladaPenta: boolean,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   if (!tipo) return null;
   if (tipo === "exc_dmg_rate" || tipo === "crit_dmg_rate") {
-    return 2000;
+    return cfg.seeds.ventaFijaExcCrit;
   }
-  const compra = precioSeed(tipo, ensambladaPenta);
-  if (compra === null) return null;
-  const mult = tipo === "penta" ? 2.1 : 3.5;
-  return Math.round(compra * mult);
+  const ref = precioReferenciaSeed(tipo, ensambladaPenta, cfg);
+  if (ref === null) return null;
+  const mult = tipo === "penta" ? cfg.multVenta.seedPenta : cfg.multVenta.seed;
+  return Math.round(ref * mult);
 }
 
 // =====================================================
 // GEMAS Y OTROS
 // =====================================================
-// Categoría nueva: items varios con precio fijo de compra.
-// Todos venden ×2.
-
-export type GemaTipo =
-  | "gema_item_s3" | "gema_alas_s3" | "gema_seed" | "gema_item_380" | "gema_item_400"
-  | "gema_gp" | "ring_wheel" | "item_acc" | "purple_box" | "chaos_box"
-  | "kundun_box_5" | "kundun_box_4";
 
 export const GEMA_LABELS: Record<GemaTipo, string> = {
   gema_item_s3: "Gema item S3",
@@ -430,58 +520,38 @@ export const GEMA_LABELS: Record<GemaTipo, string> = {
   kundun_box_4: "Kundun Box +4",
 };
 
-/** Precio de COMPRA de cada gema/otro. */
-export const GEMA_PRECIOS: Record<GemaTipo, number> = {
-  gema_item_s3: 5000,
-  gema_alas_s3: 5000,
-  gema_seed: 40000,
-  gema_item_380: 4000,
-  gema_item_400: 7000,
-  gema_gp: 4000,
-  ring_wheel: 5500,
-  item_acc: 1000,
-  purple_box: 1000,
-  chaos_box: 800,
-  kundun_box_5: 100,
-  kundun_box_4: 80,
-};
-
-/** Multiplicador de venta de gemas: todas ×2. */
-export const GEMA_MULT_VENTA = 2;
-
-export function precioVentaGema(tipo: GemaTipo | null): number | null {
-  if (!tipo) return null;
-  return GEMA_PRECIOS[tipo] * GEMA_MULT_VENTA;
+/** Precio de REFERENCIA de una gema. */
+export function precioReferenciaGema(
+  tipo: GemaTipo,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number {
+  return cfg.gemas[tipo];
 }
 
+/** Precio de COMPRA de una gema (con ajuste aplicado). */
+export function gemaPrecioCompra(
+  tipo: GemaTipo,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number {
+  return aplicarAjusteCompra(precioReferenciaGema(tipo, cfg), cfg, "gema") ?? 0;
+}
+
+/** Precio de VENTA de una gema (referencia × multiplicador de gemas). */
+export function precioVentaGema(
+  tipo: GemaTipo | null,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  if (!tipo) return null;
+  return Math.round(precioReferenciaGema(tipo, cfg) * cfg.multVenta.gema);
+}
 
 // =====================================================
 // JOYERÍA (anillos y pendientes)
 // =====================================================
-// Dos tipos: anillo y pendiente. Cada uno con nombres específicos (desplegable).
-//
-// ANILLOS (Ring of ...):
-//   - Requisito: HP + DD + REF (sin eso → no se compra).
-//   - Variable: Life Recovery % (1 a 7).
-//   - Nombres: poison, ice, earth, fire, wind, magic.
-//   - Variantes BARATAS (-30%): poison, fire, magic.
-//
-// PENDIENTES (Pendant of ...):
-//   - Requisitos: exe rate 10% + dmg 2% (obligatorias) Y opción variable = Life Recovery.
-//   - Tercera opción de arma (speed7/dmglvl20): requisito de calidad, no afecta precio.
-//   - Variable: Life Recovery % (1 a 7).
-//   - Nombres: lighting, ice, water, fire, wind, ability.
-//   - Variantes BARATAS (-30%): water, fire, ability.
-//
-// Modelo de precio (Versión 2 - "equilibrada con saltos"):
-//   - Rango 5.000 (n0,1%) a 30.000 (n15,7%) para la variante CARA.
-//   - % aporta 55% del rango (curva exp 1.4), nivel aporta 45%.
-//   - Nivel: subida lineal suave + saltos extra al tocar +7 y +15.
-//   - Variante barata: -30% sobre el precio final.
-//
-// Venta = compra × 4.
-
-export type TipoJoya = "anillo" | "pendiente";
+// ANILLOS: requieren HP + DD + REF. Variable: Life Recovery %.
+// PENDIENTES: requieren exe rate + dmg 2% + tercera opción. Variable: Life %.
+// El % aporta una parte del rango (curva exponencial) y el nivel la otra
+// (lineal + saltos en +7 y +15). Todo configurable.
 
 export const JOYA_LABELS: Record<TipoJoya, string> = {
   anillo: "Anillo",
@@ -491,9 +561,6 @@ export const JOYA_LABELS: Record<TipoJoya, string> = {
 /** Opción variable del pendiente. Solo "life" se compra. */
 export type OpcionVariablePendiente = "life" | "mana" | "ag";
 
-export const JOYA_MULT_VENTA = 4;
-
-// Nombres de joyas
 export type NombreAnillo = "poison" | "ice" | "earth" | "fire" | "wind" | "magic";
 export type NombrePendiente = "lighting" | "ice" | "water" | "fire" | "wind" | "ability";
 export type NombreJoya = NombreAnillo | NombrePendiente;
@@ -524,7 +591,7 @@ export function joyaLabel(tipo: TipoJoya, nombre: string | null): string {
   return found ? found.label : JOYA_LABELS[tipo];
 }
 
-/** Variantes baratas (-30%) por tipo. */
+/** Variantes baratas por tipo. */
 const ANILLO_BARATOS: NombreAnillo[] = ["poison", "fire", "magic"];
 const PENDIENTE_BARATOS: NombrePendiente[] = ["water", "fire", "ability"];
 
@@ -534,77 +601,85 @@ export function esJoyaBarata(tipo: TipoJoya, nombre: string | null): boolean {
   return PENDIENTE_BARATOS.includes(nombre as NombrePendiente);
 }
 
-/**
- * Factor de nivel (0..1): subida lineal suave + saltos extra en +7 y +15.
- */
-function factorNivelJoya(nivel: number): number {
+/** Factor de nivel (0..1): subida lineal + saltos extra en +7 y +15. */
+function factorNivelJoya(nivel: number, cfg: ConfigPrecios): number {
+  const j = cfg.joyeria;
   const n = Math.max(0, Math.min(15, nivel));
-  const base = (n / 15) * 0.65;       // lineal suave (65% del peso del nivel)
+  const base = (n / 15) * j.lineal;
   let bonus = 0;
-  if (n >= 7) bonus += 0.15;          // salto al llegar a +7
-  if (n >= 15) bonus += 0.20;         // salto mayor al llegar a +15
+  if (n >= 7) bonus += j.salto7;
+  if (n >= 15) bonus += j.salto15;
   return Math.min(1, base + bonus);
 }
 
-/**
- * Precio base de joyería (variante CARA), rango 5.000 - 30.000.
- * % aporta 55% (curva exp 1.4), nivel aporta 45% (con saltos).
- * Se aplica un -25% adicional sobre todo (ajuste de precios).
- */
-function precioJoyaBase(nivel: number, pct: number): number {
-  const MIN = 5000, MAX = 30000;
-  const fPct = Math.pow((pct - 1) / 6, 1.4);
-  const fNivel = factorNivelJoya(nivel);
-  const rango = MAX - MIN;
-  const aportePct = fPct * rango * 0.55;
-  const aporteNivel = fNivel * rango * 0.45;
-  const bruto = Math.min(MAX, MIN + aportePct + aporteNivel);
-  return Math.round(bruto * 0.75);  // -25% adicional para todos
+/** Precio base de joyería (variante cara), entre el piso y el techo configurados. */
+function precioJoyaBase(nivel: number, pct: number, cfg: ConfigPrecios): number {
+  const j = cfg.joyeria;
+  const fPct = Math.pow((pct - 1) / 6, j.expPct);
+  const fNivel = factorNivelJoya(nivel, cfg);
+  const rango = j.techo - j.piso;
+  const aportePct = fPct * rango * j.pesoPct;
+  const aporteNivel = fNivel * rango * j.pesoNivel;
+  const bruto = Math.min(j.techo, j.piso + aportePct + aporteNivel);
+  return Math.round(bruto * j.ajusteGlobal);
 }
 
 export interface JoyaInput {
   tipo: TipoJoya | null;
-  nombre?: string | null;     // nombre de la joya (para -30% en variantes baratas)
+  nombre?: string | null;     // para la variante barata
   nivel: number;              // 0-15
   lifeRecovery: number;       // 1-7 (% de Life Recovery)
-  tieneLife?: boolean;        // ¿tiene la opción Life Recovery? (sin esto no se compra)
+  tieneLife?: boolean;        // sin esto no se compra
   // Anillo:
   hpDdRef?: boolean;
   // Pendiente:
   exeRate?: boolean;
   dmg2pct?: boolean;
-  tercera?: "" | "speed7" | "dmglvl20";  // tercera opción (obligatoria en pendientes)
+  tercera?: "" | "speed7" | "dmglvl20";
 }
 
-/** Precio de COMPRA de una joya. null si no se compra. */
-export function precioJoya(input: JoyaInput): number | null {
+/** Precio de REFERENCIA de una joya (fórmula pura, sin ajuste de compra). */
+export function precioReferenciaJoya(
+  input: JoyaInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   const { tipo, nivel, lifeRecovery, nombre } = input;
+  const req = cfg.requisitos.joya;
   if (!tipo) return null;
 
-  // Sin Life Recovery → no se compra (puede tener AG/Mana que no sirven)
-  if (!input.tieneLife) return null;
-  if (lifeRecovery < 1 || lifeRecovery > 7) return null;
+  if (req.exigeLife && !input.tieneLife) return null;
+  if (lifeRecovery < req.lifeMin || lifeRecovery > req.lifeMax) return null;
 
   if (tipo === "anillo") {
-    // Requiere HP + DD + REF
-    if (!input.hpDdRef) return null;
+    if (req.anilloExigeHpDdRef && !input.hpDdRef) return null;
   } else {
-    // Pendiente: exe rate + 2% obligatorias + tercera opción obligatoria (speed7/dmglvl20)
-    if (!input.exeRate || !input.dmg2pct) return null;
-    if (input.tercera !== "speed7" && input.tercera !== "dmglvl20") return null;
+    if (req.pendienteExigeExeRateDmg2 && (!input.exeRate || !input.dmg2pct)) return null;
+    if (req.pendienteExigeTercera && input.tercera !== "speed7" && input.tercera !== "dmglvl20") {
+      return null;
+    }
   }
 
-  let precio = precioJoyaBase(nivel, lifeRecovery);
-  // Variante barata: -30% encima del -25% ya aplicado en el base
+  let precio = precioJoyaBase(nivel, lifeRecovery, cfg);
   if (esJoyaBarata(tipo, nombre ?? null)) {
-    precio = Math.round(precio * 0.7);
+    precio = Math.round(precio * cfg.joyeria.variantesBaratas);
   }
   return precio;
 }
 
-/** Precio de VENTA de una joya (compra × 4). */
-export function precioVentaJoya(input: JoyaInput): number | null {
-  const compra = precioJoya(input);
-  if (compra === null) return null;
-  return Math.round(compra * JOYA_MULT_VENTA);
+/** Precio de COMPRA de una joya. null si no se compra. */
+export function precioJoya(
+  input: JoyaInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  return aplicarAjusteCompra(precioReferenciaJoya(input, cfg), cfg, "joya");
+}
+
+/** Precio de VENTA de una joya (referencia × multiplicador de joyería). */
+export function precioVentaJoya(
+  input: JoyaInput,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
+  const ref = precioReferenciaJoya(input, cfg);
+  if (ref === null) return null;
+  return Math.round(ref * cfg.multVenta.joya);
 }

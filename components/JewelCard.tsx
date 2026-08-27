@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIG, whatsappLink } from "@/lib/config";
+import { usePrecioPromo, detallePromoCarrito } from "@/components/ui/PrecioPromo";
 import { useCarrito } from "@/lib/carrito";
 import { JEWEL_LABELS } from "@/lib/precios";
 import { trackEvento } from "@/lib/analytics";
@@ -43,6 +44,7 @@ const COLORS_JEWEL: Record<TipoJewel, string> = {
 
 export default function JewelCard({ group }: Props) {
   const { tipo, esEspecial, totalUnidades, precioUnitario } = group;
+  const precio = usePrecioPromo(precioUnitario, "jewel");
   const { agregar } = useCarrito();
   const label = JEWEL_LABELS[tipo];
   const totalJewels = esEspecial ? totalUnidades : totalUnidades * 30;
@@ -52,10 +54,10 @@ export default function JewelCard({ group }: Props) {
   const wpMsg = esEspecial
     ? `${CONFIG.WHATSAPP_GREETING} Quiero comprar ${label}.
 Stock disponible: ${totalUnidades} unidad${totalUnidades === 1 ? "" : "es"}
-Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u`
+Precio: ${precio.final.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u${precio.enPromo ? ` (${precio.etiqueta} −${precio.pct}%, antes ${precio.original.toLocaleString("es-AR")})` : ""}`
     : `${CONFIG.WHATSAPP_GREETING} Quiero comprar ${label}.
 Stock disponible: ${totalUnidades} bundle${totalUnidades === 1 ? "" : "s"} (${totalJewels} jewels)
-Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle`;
+Precio: ${precio.final.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle${precio.enPromo ? ` (${precio.etiqueta} −${precio.pct}%, antes ${precio.original.toLocaleString("es-AR")})` : ""}`;
 
   return (
     <div className={`gamer-card rounded-lg p-5 border ${COLORS_JEWEL[tipo]} flex flex-col gap-3`}>
@@ -92,11 +94,23 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle`
           )}
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-body text-text-muted uppercase tracking-wider mb-0.5">
-            Precio
-          </p>
-          <p className="font-numeric font-bold text-xl neon-text-orange">
-            {precioUnitario.toLocaleString("es-AR")}
+          <div className="flex items-center justify-end gap-1.5 mb-0.5">
+            <p className="text-[10px] font-body text-text-muted uppercase tracking-wider">
+              Precio
+            </p>
+            {precio.enPromo && (
+              <span className="badge bg-danger-red/15 text-danger-red border border-danger-red/50 text-[9px] font-bold">
+                −{precio.pct}%
+              </span>
+            )}
+          </div>
+          {precio.enPromo && (
+            <p className="font-numeric text-[11px] text-text-muted line-through leading-none">
+              {precio.original.toLocaleString("es-AR")}
+            </p>
+          )}
+          <p className={`font-numeric font-bold text-xl ${precio.enPromo ? "text-danger-red" : "neon-text-orange"}`}>
+            {precio.final.toLocaleString("es-AR")}
           </p>
           <p className="text-[10px] font-body text-text-muted">{CONFIG.CURRENCY} / {unidadLabel}</p>
         </div>
@@ -107,8 +121,8 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle`
           onClick={() => agregar({
             tipo: "compra",
             titulo: label,
-            detalle: esEspecial ? `${totalUnidades} u.` : `${totalUnidades} bundle(s)`,
-            precio: precioUnitario,
+            detalle: `${esEspecial ? `${totalUnidades} u.` : `${totalUnidades} bundle(s)`}${detallePromoCarrito(precio)}`,
+            precio: precio.final,
           })}
           className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-4 py-2 rounded font-body text-xs uppercase tracking-widest hover:bg-neon-cyan/25 transition-colors"
         >
@@ -122,7 +136,7 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} por bundle`
             tipo: "consultar_jewel",
             item_categoria: "jewel",
             item_nombre: label,
-            item_precio: precioUnitario,
+            item_precio: precio.final,
           })}
           className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest"
         >

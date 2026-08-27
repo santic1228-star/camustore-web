@@ -4,10 +4,12 @@ import { useState, useMemo } from "react";
 import { FieldLabel, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
 import { precioArma, ArmaInput } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 import { itemsPorRazaCategoria, itemPorId, RAZAS_CON_ITEMS, TipoEquipo } from "@/lib/items-catalogo";
 import type { Raza } from "@/lib/database.types";
 
 export default function SeccionArmas() {
+  const cfg = useCfg();
   const [raza, setRaza] = useState<"" | Raza>("");
   const [itemId, setItemId] = useState("");
   const [tipo, setTipo] = useState<"" | TipoEquipo>("");
@@ -47,8 +49,8 @@ export default function SeccionArmas() {
       socket: tipo === "400" ? socket : null,
       luck, skill,
     };
-    return precioArma(input);
-  }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill]);
+    return precioArma(input, cfg);
+  }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill, cfg]);
 
   const opcionesTxt = [
     exeRate ? "exe rate 10%" : null,

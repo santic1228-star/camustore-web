@@ -4,8 +4,10 @@ import { useState, useMemo } from "react";
 import { FieldLabel, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
 import { precioEscudo, EscudoInput, ESCUDO_NOMBRES, escudoLabel } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 
 export default function SeccionEscudos() {
+  const cfg = useCfg();
   const [nombre, setNombre] = useState("");
   const [nivel, setNivel] = useState("9");
   const [hpDdRef, setHpDdRef] = useState(true);
@@ -20,8 +22,8 @@ export default function SeccionEscudos() {
       socket,
       luck, skill,
     };
-    return precioEscudo(input);
-  }, [hpDdRef, nivel, socket, luck, skill]);
+    return precioEscudo(input, cfg);
+  }, [hpDdRef, nivel, socket, luck, skill, cfg]);
 
   const descripcion = [
     `• Escudo: ${nombre ? escudoLabel(nombre) : "(sin nombre)"}`,

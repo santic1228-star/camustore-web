@@ -3,6 +3,7 @@ import { Cinzel, JetBrains_Mono, Orbitron } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { CONFIG } from "@/lib/config";
 import { CarritoProvider } from "@/lib/carrito";
+import { ConfigPreciosProvider } from "@/lib/precios-contexto";
 import Carrito from "@/components/Carrito";
 import "./globals.css";
 
@@ -47,10 +48,12 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${cinzel.variable} ${jetbrains.variable} ${orbitron.variable}`}>
       <body className="bg-bg-deep text-text-primary font-body antialiased min-h-screen">
-        <CarritoProvider>
-          {children}
-          <Carrito />
-        </CarritoProvider>
+        <ConfigPreciosProvider>
+          <CarritoProvider>
+            {children}
+            <Carrito />
+          </CarritoProvider>
+        </ConfigPreciosProvider>
         <Analytics />
       </body>
     </html>

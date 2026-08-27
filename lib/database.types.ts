@@ -278,6 +278,31 @@ export interface ConsignacionItemRow {
 
 
 // =====================================================
+// CONFIGURACIÓN DE PRECIOS (24/08/2026) — tabla `config_precios`
+// (SQL: camustore_config_precios.sql)
+//
+// Append-only: cada guardado inserta una fila nueva con el JSONB completo.
+// La fila más reciente es la vigente; las anteriores son el historial y
+// sirven para volver atrás. La forma del JSONB es `ConfigPrecios`
+// (lib/precios-config.ts); se guarda como Record para tolerar versiones
+// viejas del panel, y `fusionarConfig` completa lo que falte.
+// =====================================================
+
+export interface ConfigPreciosRow {
+  id: string;
+  valores: Record<string, unknown>;
+  nota: string | null;
+  creado_por_email: string;
+  created_at: string;
+}
+
+export type ConfigPreciosInsert = {
+  valores: Record<string, unknown>;
+  nota?: string | null;
+  creado_por_email: string;
+};
+
+// =====================================================
 // Versión de miembros (21/08/2026) — tablas `miembros` y `eventos_registros`
 // (SQL: camustore_miembros.sql)
 // =====================================================

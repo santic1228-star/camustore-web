@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { FieldLabel, TextInput, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
 import { precioJoya, precioVentaJoya, JOYA_LABELS, TipoJoya, ANILLO_NOMBRES, PENDIENTE_NOMBRES, joyaLabel, esJoyaBarata } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 import type { EstadoItem, OpcionVariableJoya } from "@/lib/database.types";
 
 interface Joya {
@@ -206,6 +207,7 @@ function ActionsMenu({
 }
 
 function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | TipoJoya>("");
   const [nombre, setNombre] = useState("");
   const [nivel, setNivel] = useState("0");
@@ -228,8 +230,8 @@ function NuevaJoyaForm({ onSaved }: { onSaved: () => void }) {
     hpDdRef,
     exeRate, dmg2pct, tercera,
   };
-  const compra = tipo ? precioJoya(input) : null;
-  const venta = tipo ? precioVentaJoya(input) : null;
+  const compra = tipo ? precioJoya(input, cfg) : null;
+  const venta = tipo ? precioVentaJoya(input, cfg) : null;
   const sePuede = compra !== null;
 
   async function guardar() {

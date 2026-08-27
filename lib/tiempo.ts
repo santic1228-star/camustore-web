@@ -8,6 +8,13 @@
 export const DIA_SEG = 24 * 60 * 60;
 export const DIA_MS = DIA_SEG * 1000;
 
+/**
+ * Hora servidor = Argentina (UTC-3 fijo; el país no tiene horario de verano
+ * desde 2009). Vive acá para que `registros.ts` y `precios-config.ts` no
+ * tengan dos definiciones del mismo offset.
+ */
+export const OFFSET_SERVIDOR_MS = -3 * 60 * 60 * 1000;
+
 // =====================================================
 // Máscaras de input (se aplican mientras el usuario tipea)
 // =====================================================

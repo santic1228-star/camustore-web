@@ -3,12 +3,14 @@
 import { useState, useMemo } from "react";
 import { FieldLabel, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
+import { useCfg } from "@/lib/precios-contexto";
 import {
   precioJoya, JoyaInput, TipoJoya,
   ANILLO_NOMBRES, PENDIENTE_NOMBRES, joyaLabel, esJoyaBarata,
 } from "@/lib/precios";
 
 export default function SeccionJoyeria() {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | TipoJoya>("");
   const [nombre, setNombre] = useState("");
   const [nivel, setNivel] = useState("0");
@@ -31,8 +33,8 @@ export default function SeccionJoyeria() {
       hpDdRef,
       exeRate, dmg2pct, tercera,
     };
-    return precioJoya(input);
-  }, [tipo, nombre, nivel, lifeRecovery, tieneLife, hpDdRef, exeRate, dmg2pct, tercera]);
+    return precioJoya(input, cfg);
+  }, [tipo, nombre, nivel, lifeRecovery, tieneLife, hpDdRef, exeRate, dmg2pct, tercera, cfg]);
 
   const nombresDisponibles = tipo === "anillo" ? ANILLO_NOMBRES : tipo === "pendiente" ? PENDIENTE_NOMBRES : [];
   const esBarata = tipo && nombre ? esJoyaBarata(tipo, nombre) : false;

@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { FieldLabel, TextInput, Select, PillToggle } from "@/components/ui/FormField";
-import { JEWEL_PRECIOS, JEWEL_LABELS, SEED_LABELS } from "@/lib/precios";
+import { jewelPrecioCompra, JEWEL_LABELS, SEED_LABELS } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
+import type { ConfigPrecios } from "@/lib/precios-config";
 import type { TipoJewel, TipoSeed, EstadoItem } from "@/lib/database.types";
 
 interface Jewel {
@@ -30,7 +32,7 @@ interface Seed {
 // Cálculos de precios
 // =====================================================
 import {
-  esJewelEspecial, JEWEL_MULT_VENTA,
+  esJewelEspecial, jewelPrecioVenta,
   precioSeed as precioSeedLib, precioVentaSeed as precioVentaSeedLib,
   SEED_ACEPTA_PENTA,
 } from "@/lib/precios";
@@ -40,23 +42,24 @@ import {
  * - Si es REGULAR: usa j.bundles (cada bundle son 30 jewels, precio por bundle).
  * - Si es ESPECIAL: usa j.cantidad (precio por unidad individual).
  */
-function precioCompraJewel(j: { tipo: TipoJewel; bundles: number; cantidad: number }): number {
-  const unidad = JEWEL_PRECIOS[j.tipo];
-  const n = esJewelEspecial(j.tipo) ? j.cantidad : j.bundles;
-  return unidad * n;
+function unidadesJewel(j: { tipo: TipoJewel; bundles: number; cantidad: number }): number {
+  return esJewelEspecial(j.tipo) ? j.cantidad : j.bundles;
 }
-function precioVentaJewel(j: { tipo: TipoJewel; bundles: number; cantidad: number }): number {
-  return Math.round(precioCompraJewel(j) * JEWEL_MULT_VENTA[j.tipo]);
+function precioCompraJewel(j: { tipo: TipoJewel; bundles: number; cantidad: number }, cfg: ConfigPrecios): number {
+  return jewelPrecioCompra(j.tipo, cfg) * unidadesJewel(j);
+}
+function precioVentaJewel(j: { tipo: TipoJewel; bundles: number; cantidad: number }, cfg: ConfigPrecios): number {
+  return jewelPrecioVenta(j.tipo, cfg) * unidadesJewel(j);
 }
 
 // Seeds: usan las funciones de lib/precios (que tienen las reglas nuevas,
 // incluyendo Penta, Exc Dmg Rate y Crit Dmg Rate con venta hardcodeada).
-function precioCompraSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number): number {
-  const unit = precioSeedLib(tipo, ensamblada_penta) ?? 0;
+function precioCompraSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number, cfg: ConfigPrecios): number {
+  const unit = precioSeedLib(tipo, ensamblada_penta, cfg) ?? 0;
   return unit * cantidad;
 }
-function precioVentaSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number): number {
-  const unit = precioVentaSeedLib(tipo, ensamblada_penta) ?? 0;
+function precioVentaSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: number, cfg: ConfigPrecios): number {
+  const unit = precioVentaSeedLib(tipo, ensamblada_penta, cfg) ?? 0;
   return unit * cantidad;
 }
 
@@ -64,6 +67,7 @@ function precioVentaSeed(tipo: TipoSeed, ensamblada_penta: boolean, cantidad: nu
 // PÁGINA
 // =====================================================
 export default function SeccionStock() {
+  const cfg = useCfg();
   const [jewels, setJewels] = useState<Jewel[]>([]);
   const [seeds, setSeeds] = useState<Seed[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,10 +203,10 @@ export default function SeccionStock() {
                         {unidadesTotal.toLocaleString("es-AR")} {unidadesLabel}
                       </td>
                       <td className="py-2 pr-3 text-right font-numeric text-text-secondary">
-                        {precioCompraJewel(j).toLocaleString("es-AR")}
+                        {precioCompraJewel(j, cfg).toLocaleString("es-AR")}
                       </td>
                       <td className="py-2 pr-3 text-right font-numeric font-bold text-neon-orange">
-                        {precioVentaJewel(j).toLocaleString("es-AR")}
+                        {precioVentaJewel(j, cfg).toLocaleString("es-AR")}
                       </td>
                       <td className="py-2 pr-3 text-text-secondary hidden md:table-cell">{j.dueno || "—"}</td>
                       <td className="py-2 pr-3"><EstadoBadge estado={j.estado} /></td>
@@ -260,10 +264,10 @@ export default function SeccionStock() {
                     </td>
                     <td className="py-2 pr-3 text-right font-numeric text-neon-cyan">{s.cantidad}</td>
                     <td className="py-2 pr-3 text-right font-numeric text-text-secondary">
-                      {precioCompraSeed(s.tipo, s.ensamblada_penta, s.cantidad).toLocaleString("es-AR")}
+                      {precioCompraSeed(s.tipo, s.ensamblada_penta, s.cantidad, cfg).toLocaleString("es-AR")}
                     </td>
                     <td className="py-2 pr-3 text-right font-numeric font-bold text-neon-orange">
-                      {precioVentaSeed(s.tipo, s.ensamblada_penta, s.cantidad).toLocaleString("es-AR")}
+                      {precioVentaSeed(s.tipo, s.ensamblada_penta, s.cantidad, cfg).toLocaleString("es-AR")}
                     </td>
                     <td className="py-2 pr-3 text-text-secondary hidden md:table-cell">{s.dueno || "—"}</td>
                     <td className="py-2 pr-3"><EstadoBadge estado={s.estado} /></td>
@@ -359,6 +363,7 @@ function ActionsMenu({
 // FORM NUEVO JEWEL
 // =====================================================
 function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | TipoJewel>("");
   const [cant, setCant] = useState("1");  // bundles si regular, cantidad si especial
   const [dueno, setDueno] = useState("");
@@ -390,8 +395,8 @@ function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
     bundles: especial ? 0 : cantNum,
     cantidad: especial ? cantNum : 0,
   } : null;
-  const compra = previewJ ? precioCompraJewel(previewJ) : 0;
-  const venta = previewJ ? precioVentaJewel(previewJ) : 0;
+  const compra = previewJ ? precioCompraJewel(previewJ, cfg) : 0;
+  const venta = previewJ ? precioVentaJewel(previewJ, cfg) : 0;
 
   return (
     <div className="gamer-card rounded-lg p-4">
@@ -453,6 +458,7 @@ function NuevoJewelForm({ onSaved }: { onSaved: () => void }) {
 // FORM NUEVO SEED
 // =====================================================
 function NuevoSeedForm({ onSaved }: { onSaved: () => void }) {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | TipoSeed>("");
   const [ensamblada, setEnsamblada] = useState(false);
   const [cantidad, setCantidad] = useState("1");
@@ -478,8 +484,8 @@ function NuevoSeedForm({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  const compra = tipo ? precioCompraSeed(tipo, aceptaPenta && ensamblada, cantidadNum) : 0;
-  const venta = tipo ? precioVentaSeed(tipo, aceptaPenta && ensamblada, cantidadNum) : 0;
+  const compra = tipo ? precioCompraSeed(tipo, aceptaPenta && ensamblada, cantidadNum, cfg) : 0;
+  const venta = tipo ? precioVentaSeed(tipo, aceptaPenta && ensamblada, cantidadNum, cfg) : 0;
 
   return (
     <div className="gamer-card rounded-lg p-4">

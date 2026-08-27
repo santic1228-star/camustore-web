@@ -5,12 +5,14 @@ import Link from "next/link";
 import { signOut } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
-export type AdminTab = "catalogo" | "stock" | "gemas" | "joyeria" | "analytics" | "miembros" | "pendientes";
+export type AdminTab = "catalogo" | "stock" | "gemas" | "joyeria" | "precios" | "analytics" | "miembros" | "pendientes";
 
 interface Props {
   user: User;
   activeTab: AdminTab;
   onTabChange: (tab: AdminTab) => void;
+  /** Contadores por tab (ej: consignaciones abiertas). Solo se dibuja si > 0. */
+  badges?: Partial<Record<AdminTab, number>>;
   children: ReactNode;
 }
 
@@ -19,12 +21,13 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "stock", label: "Jewels & Seeds", icon: "💎" },
   { id: "gemas", label: "Gemas y otros", icon: "🔮" },
   { id: "joyeria", label: "Joyería", icon: "💍" },
+  { id: "precios", label: "Precios", icon: "🔥" },
   { id: "analytics", label: "Analytics", icon: "📊" },
   { id: "miembros", label: "Miembros", icon: "👥" },
-  { id: "pendientes", label: "Pendientes", icon: "⏳" },
+  { id: "pendientes", label: "Consignaciones", icon: "📥" },
 ];
 
-export default function AdminLayout({ user, activeTab, onTabChange, children }: Props) {
+export default function AdminLayout({ user, activeTab, onTabChange, badges, children }: Props) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header admin */}
@@ -71,6 +74,11 @@ export default function AdminLayout({ user, activeTab, onTabChange, children }: 
             >
               <span className="mr-1.5">{t.icon}</span>
               {t.label}
+              {badges?.[t.id] ? (
+                <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-neon-orange text-bg-deep font-numeric text-[11px] font-bold">
+                  {badges[t.id]}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>

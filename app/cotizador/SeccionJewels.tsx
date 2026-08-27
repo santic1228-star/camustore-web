@@ -3,19 +3,21 @@
 import { useState, useMemo } from "react";
 import { FieldLabel, TextInput, Select } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
-import { precioJewels, JewelTipo, JEWEL_LABELS, JEWEL_PRECIOS } from "@/lib/precios";
+import { precioJewels, JewelTipo, JEWEL_LABELS, jewelPrecioCompra } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 
 export default function SeccionJewels() {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | JewelTipo>("");
   const [bundles, setBundles] = useState("1");
 
   const bundlesNum = Math.max(0, Math.min(99, Number(bundles) || 0));
 
   const precio = useMemo(() => {
-    return precioJewels(tipo || null, bundlesNum);
-  }, [tipo, bundlesNum]);
+    return precioJewels(tipo || null, bundlesNum, cfg);
+  }, [tipo, bundlesNum, cfg]);
 
-  const totalJewels = bundlesNum * 30;
+  const totalJewels = bundlesNum * cfg.jewels.bundle;
 
   const descripcion = [
     `• Jewels: ${tipo ? JEWEL_LABELS[tipo] : "(sin tipo)"}`,
@@ -70,13 +72,13 @@ export default function SeccionJewels() {
           </p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-body text-xs">
             <div className="text-text-secondary">Jewel of Chaos</div>
-            <div className="font-numeric font-bold text-neon-cyan text-right">{JEWEL_PRECIOS.chaos} WC</div>
+            <div className="font-numeric font-bold text-neon-cyan text-right">{jewelPrecioCompra("chaos", cfg).toLocaleString("es-AR")} WC</div>
             <div className="text-text-secondary">Jewel of Creation</div>
-            <div className="font-numeric font-bold text-neon-cyan text-right">{JEWEL_PRECIOS.creation} WC</div>
+            <div className="font-numeric font-bold text-neon-cyan text-right">{jewelPrecioCompra("creation", cfg).toLocaleString("es-AR")} WC</div>
             <div className="text-text-secondary">Jewel of Soul</div>
-            <div className="font-numeric font-bold text-neon-cyan text-right">{JEWEL_PRECIOS.soul} WC</div>
+            <div className="font-numeric font-bold text-neon-cyan text-right">{jewelPrecioCompra("soul", cfg).toLocaleString("es-AR")} WC</div>
             <div className="text-text-secondary">Jewel of Bless</div>
-            <div className="font-numeric font-bold text-neon-cyan text-right">{JEWEL_PRECIOS.bless} WC</div>
+            <div className="font-numeric font-bold text-neon-cyan text-right">{jewelPrecioCompra("bless", cfg).toLocaleString("es-AR")} WC</div>
           </div>
         </div>
       </div>

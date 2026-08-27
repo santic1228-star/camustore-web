@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIG, whatsappLink } from "@/lib/config";
+import { usePrecioPromo, detallePromoCarrito } from "@/components/ui/PrecioPromo";
 import { useCarrito } from "@/lib/carrito";
 import { GEMA_LABELS } from "@/lib/precios";
 import { trackEvento } from "@/lib/analytics";
@@ -31,13 +32,14 @@ const ICONOS: Partial<Record<TipoGema, string>> = {
 
 export default function GemaCard({ group }: Props) {
   const { tipo, totalCantidad, precioUnitario } = group;
+  const precio = usePrecioPromo(precioUnitario, "gema");
   const { agregar } = useCarrito();
   const label = GEMA_LABELS[tipo];
   const icono = ICONOS[tipo] || "🔮";
 
   const wpMsg = `${CONFIG.WHATSAPP_GREETING} Quiero comprar ${label}.
 Stock disponible: ${totalCantidad} unidad${totalCantidad === 1 ? "" : "es"}
-Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u`;
+Precio: ${precio.final.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u${precio.enPromo ? ` (${precio.etiqueta} −${precio.pct}%, antes ${precio.original.toLocaleString("es-AR")})` : ""}`;
 
   return (
     <div className="gamer-card rounded-lg p-5 border border-purple-500/30 flex flex-col gap-3">
@@ -60,11 +62,23 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u`;
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-body text-text-muted uppercase tracking-wider mb-0.5">
-            Precio
-          </p>
-          <p className="font-numeric font-bold text-xl neon-text-orange">
-            {precioUnitario.toLocaleString("es-AR")}
+          <div className="flex items-center justify-end gap-1.5 mb-0.5">
+            <p className="text-[10px] font-body text-text-muted uppercase tracking-wider">
+              Precio
+            </p>
+            {precio.enPromo && (
+              <span className="badge bg-danger-red/15 text-danger-red border border-danger-red/50 text-[9px] font-bold">
+                −{precio.pct}%
+              </span>
+            )}
+          </div>
+          {precio.enPromo && (
+            <p className="font-numeric text-[11px] text-text-muted line-through leading-none">
+              {precio.original.toLocaleString("es-AR")}
+            </p>
+          )}
+          <p className={`font-numeric font-bold text-xl ${precio.enPromo ? "text-danger-red" : "neon-text-orange"}`}>
+            {precio.final.toLocaleString("es-AR")}
           </p>
           <p className="text-[10px] font-body text-text-muted">{CONFIG.CURRENCY} / unidad</p>
         </div>
@@ -75,8 +89,8 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u`;
           onClick={() => agregar({
             tipo: "compra",
             titulo: label,
-            detalle: `${totalCantidad} u.`,
-            precio: precioUnitario,
+            detalle: `${totalCantidad} u.${detallePromoCarrito(precio)}`,
+            precio: precio.final,
           })}
           className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-4 py-2 rounded font-body text-xs uppercase tracking-widest hover:bg-neon-cyan/25 transition-colors"
         >
@@ -90,7 +104,7 @@ Precio: ${precioUnitario.toLocaleString("es-AR")} ${CONFIG.CURRENCY} c/u`;
             tipo: "consultar_jewel",
             item_categoria: "gema",
             item_nombre: label,
-            item_precio: precioUnitario,
+            item_precio: precio.final,
           })}
           className="btn-primary block text-center px-4 py-2 rounded font-body text-xs uppercase tracking-widest"
         >

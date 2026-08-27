@@ -4,10 +4,12 @@ import { useState, useMemo } from "react";
 import { FieldLabel, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
 import { precioArmadura, ArmaduraInput } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 import { itemsPorRazaCategoria, itemPorId, RAZAS_CON_ITEMS, TipoEquipo } from "@/lib/items-catalogo";
 import type { Raza } from "@/lib/database.types";
 
 export default function SeccionArmaduras() {
+  const cfg = useCfg();
   const [raza, setRaza] = useState<"" | Raza>("");
   const [itemId, setItemId] = useState("");
   const [tipo, setTipo] = useState<"" | TipoEquipo>("");
@@ -49,8 +51,8 @@ export default function SeccionArmaduras() {
       socket: tipo === "400" ? socket : null,
       luck,
     };
-    return precioArmadura(input);
-  }, [hpDdRef, nivel, tipo, socket, luck]);
+    return precioArmadura(input, cfg);
+  }, [hpDdRef, nivel, tipo, socket, luck, cfg]);
 
   const descripcion = [
     `• Armadura: ${item ? item.nombre : "(sin item)"}${raza ? ` (${raza})` : ""}`,

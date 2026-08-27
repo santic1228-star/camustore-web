@@ -5,14 +5,17 @@
 // Reusa las fórmulas del cotizador para que el precio sugerido coincida.
 
 import {
-  precioArmadura, precioArma, precioAlas, precioEscudo, precioVentaEscudo,
-  precioJoya, precioVentaJoya,
-  JEWEL_PRECIOS, JEWEL_MULT_VENTA, esJewelEspecial,
+  precioArmadura, precioArma, precioAlas, precioEscudo,
+  precioJoya,
+  precioVentaArmadura, precioVentaArma, precioVentaAlas, precioVentaEscudo,
+  precioVentaJoya,
+  jewelPrecioCompra, jewelPrecioVenta, esJewelEspecial,
   SEED_LABELS, precioSeed, precioVentaSeed,
-  GEMA_PRECIOS, GEMA_LABELS, GEMA_MULT_VENTA,
+  gemaPrecioCompra, precioVentaGema, GEMA_LABELS,
   joyaLabel, escudoLabel,
   JewelTipo, SeedTipo, GemaTipo, TipoJoya,
 } from "./precios";
+import { CONFIG_PRECIOS_DEFAULT, type ConfigPrecios } from "./precios-config";
 import { itemPorId } from "./items-catalogo";
 import type { Raza } from "./database.types";
 
@@ -68,26 +71,23 @@ export type LineaConsignacion =
   | { categoria: "gema";     atributos: AtribsGema };
 
 // =====================================================
-// Multiplicadores compra→venta (igual que admin/ItemFormModal.tsx)
-// =====================================================
-function multVenta(categoria: LineaConsignacion["categoria"], tipo?: "s3" | "380" | "400"): number {
-  if (categoria === "armadura" || categoria === "arma") return tipo === "400" ? 4 : 3;
-  if (categoria === "ala") return 2.1;
-  // jewel/seed/gema/joya/escudo: ya tienen su propio venta calculado
-  return 1;
-}
-
-// =====================================================
 // Precio sugerido de COMPRA (lo que la tienda pagaría hoy)
 // =====================================================
-export function precioSugeridoCompra(linea: LineaConsignacion): number | null {
+// Ojo: en consignación el consignante cobra un % del precio de VENTA, no del
+// de compra. La compra se usa para decidir si el item se consigna o no:
+// `null` = no lo compramos, así que tampoco lo tomamos en consignación.
+
+export function precioSugeridoCompra(
+  linea: LineaConsignacion,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   switch (linea.categoria) {
     case "armadura": {
       const a = linea.atributos;
       return precioArmadura({
         hpDdRef: a.hpDdRef, nivel: a.nivel, tipo: a.tipo,
         socket: a.tipo === "400" ? a.socket : null, luck: a.luck,
-      });
+      }, cfg);
     }
     case "arma": {
       const a = linea.atributos;
@@ -97,14 +97,14 @@ export function precioSugeridoCompra(linea: LineaConsignacion): number | null {
         nivel: a.nivel, tipo: a.tipo,
         socket: a.tipo === "400" ? a.socket : null,
         luck: a.luck, skill: a.skill,
-      });
+      }, cfg);
     }
     case "escudo": {
       const a = linea.atributos;
       return precioEscudo({
         hpDdRef: a.hpDdRef, nivel: a.nivel,
         socket: a.socket, luck: a.luck, skill: a.skill,
-      });
+      }, cfg);
     }
     case "ala": {
       const a = linea.atributos;
@@ -112,7 +112,7 @@ export function precioSugeridoCompra(linea: LineaConsignacion): number | null {
         nivel: a.nivel,
         ignore: a.ignore, returnOpc: a.returnOpc,
         lifeRecovery: a.lifeRecovery, luck: a.luck,
-      });
+      }, cfg);
     }
     case "joya": {
       const a = linea.atributos;
@@ -121,24 +121,24 @@ export function precioSugeridoCompra(linea: LineaConsignacion): number | null {
         nivel: a.nivel, lifeRecovery: a.lifeRecovery, tieneLife: a.tieneLife,
         hpDdRef: a.hpDdRef,
         exeRate: a.exeRate, dmg2pct: a.dmg2pct, tercera: a.tercera,
-      });
+      }, cfg);
     }
     case "jewel": {
       const a = linea.atributos;
       if (a.cantidad <= 0) return null;
-      return JEWEL_PRECIOS[a.tipoJewel] * a.cantidad;
+      return jewelPrecioCompra(a.tipoJewel, cfg) * a.cantidad;
     }
     case "seed": {
       const a = linea.atributos;
       if (a.cantidad <= 0) return null;
-      const unit = precioSeed(a.tipoSeed, a.ensambladaPenta ?? false);
+      const unit = precioSeed(a.tipoSeed, a.ensambladaPenta ?? false, cfg);
       if (unit === null) return null;
       return unit * a.cantidad;
     }
     case "gema": {
       const a = linea.atributos;
       if (a.cantidad <= 0) return null;
-      return GEMA_PRECIOS[a.tipoGema] * a.cantidad;
+      return gemaPrecioCompra(a.tipoGema, cfg) * a.cantidad;
     }
   }
 }
@@ -146,26 +146,46 @@ export function precioSugeridoCompra(linea: LineaConsignacion): number | null {
 // =====================================================
 // Precio sugerido de VENTA al público (lo que se cobra al cliente)
 // =====================================================
-export function precioSugeridoVenta(linea: LineaConsignacion): number | null {
+// Se calcula desde la REFERENCIA de cada fórmula (no desde la compra), así el
+// ajuste de compra no arrastra la venta hacia abajo. Es el precio de lista:
+// el hot sale se aplica después, al mostrarlo.
+
+export function precioSugeridoVenta(
+  linea: LineaConsignacion,
+  cfg: ConfigPrecios = CONFIG_PRECIOS_DEFAULT
+): number | null {
   switch (linea.categoria) {
-    case "armadura":
+    case "armadura": {
+      const a = linea.atributos;
+      return precioVentaArmadura({
+        hpDdRef: a.hpDdRef, nivel: a.nivel, tipo: a.tipo,
+        socket: a.tipo === "400" ? a.socket : null, luck: a.luck,
+      }, cfg);
+    }
     case "arma": {
-      const compra = precioSugeridoCompra(linea);
-      if (compra === null) return null;
-      const tipo = (linea.atributos as { tipo: "s3" | "380" | "400" }).tipo;
-      return Math.round(compra * multVenta(linea.categoria, tipo));
+      const a = linea.atributos;
+      return precioVentaArma({
+        exeRate: a.exeRate, dmg2pct: a.dmg2pct,
+        speed7: a.tercera === "speed7", dmgLvl20: a.tercera === "dmglvl20",
+        nivel: a.nivel, tipo: a.tipo,
+        socket: a.tipo === "400" ? a.socket : null,
+        luck: a.luck, skill: a.skill,
+      }, cfg);
     }
     case "ala": {
-      const compra = precioSugeridoCompra(linea);
-      if (compra === null) return null;
-      return Math.round(compra * multVenta("ala"));
+      const a = linea.atributos;
+      return precioVentaAlas({
+        nivel: a.nivel,
+        ignore: a.ignore, returnOpc: a.returnOpc,
+        lifeRecovery: a.lifeRecovery, luck: a.luck,
+      }, cfg);
     }
     case "escudo": {
       const a = linea.atributos;
       return precioVentaEscudo({
         hpDdRef: a.hpDdRef, nivel: a.nivel,
         socket: a.socket, luck: a.luck, skill: a.skill,
-      });
+      }, cfg);
     }
     case "joya": {
       const a = linea.atributos;
@@ -174,25 +194,26 @@ export function precioSugeridoVenta(linea: LineaConsignacion): number | null {
         nivel: a.nivel, lifeRecovery: a.lifeRecovery, tieneLife: a.tieneLife,
         hpDdRef: a.hpDdRef,
         exeRate: a.exeRate, dmg2pct: a.dmg2pct, tercera: a.tercera,
-      });
+      }, cfg);
     }
     case "jewel": {
       const a = linea.atributos;
       if (a.cantidad <= 0) return null;
-      const ventaUnit = Math.round(JEWEL_PRECIOS[a.tipoJewel] * JEWEL_MULT_VENTA[a.tipoJewel]);
-      return ventaUnit * a.cantidad;
+      return jewelPrecioVenta(a.tipoJewel, cfg) * a.cantidad;
     }
     case "seed": {
       const a = linea.atributos;
       if (a.cantidad <= 0) return null;
-      const ventaUnit = precioVentaSeed(a.tipoSeed, a.ensambladaPenta ?? false);
+      const ventaUnit = precioVentaSeed(a.tipoSeed, a.ensambladaPenta ?? false, cfg);
       if (ventaUnit === null) return null;
       return ventaUnit * a.cantidad;
     }
     case "gema": {
       const a = linea.atributos;
       if (a.cantidad <= 0) return null;
-      return GEMA_PRECIOS[a.tipoGema] * GEMA_MULT_VENTA * a.cantidad;
+      const ventaUnit = precioVentaGema(a.tipoGema, cfg);
+      if (ventaUnit === null) return null;
+      return ventaUnit * a.cantidad;
     }
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CONFIG } from "@/lib/config";
+import { useCfg } from "@/lib/precios-contexto";
 import {
   calcularDesgloseConsignante,
   labelLinea,
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export default function PanelAgregar({ linea, motivo, onAgregar }: Props) {
+  const cfg = useCfg();
   const [flash, setFlash] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -29,8 +31,8 @@ export default function PanelAgregar({ linea, motivo, onAgregar }: Props) {
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
-  const compra = linea ? precioSugeridoCompra(linea) : null;
-  const venta = linea ? precioSugeridoVenta(linea) : null;
+  const compra = linea ? precioSugeridoCompra(linea, cfg) : null;
+  const venta = linea ? precioSugeridoVenta(linea, cfg) : null;
   const cotiza = linea !== null && compra !== null && venta !== null && venta > 0;
   const desglose = cotiza && venta !== null ? calcularDesgloseConsignante(venta, COMISION_PCT) : null;
 
@@ -106,7 +108,7 @@ export default function PanelAgregar({ linea, motivo, onAgregar }: Props) {
 
       <p className="font-body text-[10px] text-text-muted mt-4 leading-relaxed">
         Los precios son sugeridos y pueden variar por promociones. Camus revisa cada ítem y confirma
-        el precio al aprobar.
+        el precio al aprobar. Tu parte se calcula sobre el precio al que el ítem se vende efectivamente: si está en promoción, el porcentaje corre sobre el precio con descuento.
       </p>
     </div>
   );

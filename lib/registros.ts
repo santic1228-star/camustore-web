@@ -18,14 +18,15 @@
  */
 
 import { BOSSES } from "./bosses";
-import { DIA_MS, DIA_SEG, etiquetaDia, formatDuracion, formatHMS, pad2 } from "./tiempo";
+import { DIA_MS, DIA_SEG, etiquetaDia, formatDuracion, formatHMS, OFFSET_SERVIDOR_MS, pad2 } from "./tiempo";
 import type { EventoRegistroRow, TipoEventoRegistro } from "./database.types";
 
 // =====================================================
 // Hora servidor = Argentina (UTC-3 fijo, sin horario de verano desde 2009)
 // =====================================================
 
-export const OFFSET_SERVIDOR_MS = -3 * 60 * 60 * 1000;
+/** Re-exportado desde `tiempo.ts` (fuente única). Los imports viejos siguen andando. */
+export { OFFSET_SERVIDOR_MS };
 
 /** Segundos del día (0..86399) en hora servidor para un epoch ms. */
 export function segDelDiaServidor(ms: number): number {

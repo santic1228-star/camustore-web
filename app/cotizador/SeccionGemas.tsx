@@ -3,15 +3,17 @@
 import { useState, useMemo } from "react";
 import { FieldLabel, Select } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
-import { GEMA_PRECIOS, GEMA_LABELS, GemaTipo } from "@/lib/precios";
+import { gemaPrecioCompra, GEMA_LABELS, GemaTipo } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 
 export default function SeccionGemas() {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | GemaTipo>("");
 
   const precio = useMemo(() => {
     if (!tipo) return null;
-    return GEMA_PRECIOS[tipo];
-  }, [tipo]);
+    return gemaPrecioCompra(tipo, cfg);
+  }, [tipo, cfg]);
 
   const descripcion = `• ${tipo ? GEMA_LABELS[tipo] : "(sin seleccionar)"}`;
   const motivoNoPrecio = !tipo ? "Elegí qué tenés para vender." : undefined;
@@ -45,7 +47,7 @@ export default function SeccionGemas() {
               <div key={k} className="contents">
                 <div className="text-text-secondary">{GEMA_LABELS[k]}</div>
                 <div className="font-numeric font-bold text-neon-cyan text-right">
-                  {GEMA_PRECIOS[k].toLocaleString("es-AR")}
+                  {gemaPrecioCompra(k, cfg).toLocaleString("es-AR")}
                 </div>
               </div>
             ))}

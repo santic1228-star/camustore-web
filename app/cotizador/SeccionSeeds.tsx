@@ -3,17 +3,19 @@
 import { useState, useMemo } from "react";
 import { FieldLabel, Select, PillToggle } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
+import { useCfg } from "@/lib/precios-contexto";
 import { precioSeed, SeedTipo, SEED_LABELS, SEED_ACEPTA_PENTA } from "@/lib/precios";
 
 export default function SeccionSeeds() {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | SeedTipo>("");
   const [ensamblada, setEnsamblada] = useState(false);
 
   const aceptaPenta = tipo ? SEED_ACEPTA_PENTA.includes(tipo) : false;
 
   const precio = useMemo(() => {
-    return precioSeed(tipo || null, aceptaPenta && ensamblada);
-  }, [tipo, ensamblada, aceptaPenta]);
+    return precioSeed(tipo || null, aceptaPenta && ensamblada, cfg);
+  }, [tipo, ensamblada, aceptaPenta, cfg]);
 
   const descripcion = [
     `• Seed: ${tipo ? SEED_LABELS[tipo] : "(sin tipo)"}`,

@@ -199,7 +199,7 @@ export default function ConsignarClient() {
 
         <p className="font-body text-xs text-text-muted mt-4 leading-relaxed">
           Camus revisa ítem por ítem y te contacta por WhatsApp para coordinar la entrega. Los
-          precios son sugeridos y pueden variar por promociones.
+          precios son sugeridos y pueden variar por promociones. Tu parte se calcula sobre el precio al que el ítem se vende efectivamente: si está en promoción, el porcentaje corre sobre el precio con descuento.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
@@ -399,7 +399,7 @@ export default function ConsignarClient() {
 
         <p className="font-body text-[10px] text-text-muted mt-3 leading-relaxed text-center">
           Los precios son sugeridos y pueden variar por promociones. Camus revisa cada ítem y puede
-          aprobar, ajustar o rechazar por separado.
+          aprobar, ajustar o rechazar por separado. Tu parte se calcula sobre el precio al que el ítem se vende efectivamente: si está en promoción, el porcentaje corre sobre el precio con descuento.
         </p>
       </section>
     </div>

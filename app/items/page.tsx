@@ -11,7 +11,9 @@ import GemaCard from "@/components/GemaCard";
 import JoyaCard from "@/components/JoyaCard";
 import { supabase } from "@/lib/supabase";
 import { getRaza } from "@/lib/razas";
-import { JEWEL_PRECIOS, SEED_LABELS, GEMA_PRECIOS, GEMA_MULT_VENTA, escudoLabel } from "@/lib/precios";
+import { SEED_LABELS, escudoLabel } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
+import type { ConfigPrecios } from "@/lib/precios-config";
 import type { Item } from "@/lib/types";
 import type { ItemPublico, JewelPublico, SeedPublico, GemaPublico, JoyaPublico, TipoJewel, TipoSeed, TipoGema } from "@/lib/database.types";
 
@@ -78,7 +80,7 @@ function searchItems(items: Item[], query: string): Item[] {
 // =====================================================
 // Agrupación de jewels/seeds por tipo
 // =====================================================
-import { esJewelEspecial, JEWEL_MULT_VENTA, precioVentaSeed } from "@/lib/precios";
+import { esJewelEspecial, jewelPrecioVenta, precioVentaSeed, precioVentaGema } from "@/lib/precios";
 
 interface JewelGroup {
   tipo: TipoJewel;
@@ -98,7 +100,7 @@ interface GemaGroup {
   precioUnitario: number;
 }
 
-function agruparJewels(stocks: JewelPublico[]): JewelGroup[] {
+function agruparJewels(stocks: JewelPublico[], cfg: ConfigPrecios): JewelGroup[] {
   const map = new Map<TipoJewel, JewelGroup>();
   for (const s of stocks) {
     const especial = esJewelEspecial(s.tipo);
@@ -113,14 +115,14 @@ function agruparJewels(stocks: JewelPublico[]): JewelGroup[] {
         tipo: s.tipo,
         esEspecial: especial,
         totalUnidades: unidades,
-        precioUnitario: Math.round(JEWEL_PRECIOS[s.tipo] * JEWEL_MULT_VENTA[s.tipo]),
+        precioUnitario: jewelPrecioVenta(s.tipo, cfg),
       });
     }
   }
   return Array.from(map.values()).filter((g) => g.totalUnidades > 0);
 }
 
-function agruparSeeds(stocks: SeedPublico[]): SeedGroup[] {
+function agruparSeeds(stocks: SeedPublico[], cfg: ConfigPrecios): SeedGroup[] {
   const map = new Map<string, SeedGroup>();
   for (const s of stocks) {
     const key = `${s.tipo}::${s.ensamblada_penta}`;
@@ -128,7 +130,7 @@ function agruparSeeds(stocks: SeedPublico[]): SeedGroup[] {
     if (ex) {
       ex.totalCantidad += s.cantidad;
     } else {
-      const venta = precioVentaSeed(s.tipo, s.ensamblada_penta) ?? 0;
+      const venta = precioVentaSeed(s.tipo, s.ensamblada_penta, cfg) ?? 0;
       map.set(key, {
         tipo: s.tipo,
         ensamblada_penta: s.ensamblada_penta,
@@ -140,7 +142,7 @@ function agruparSeeds(stocks: SeedPublico[]): SeedGroup[] {
   return Array.from(map.values()).filter((g) => g.totalCantidad > 0);
 }
 
-function agruparGemas(stocks: GemaPublico[]): GemaGroup[] {
+function agruparGemas(stocks: GemaPublico[], cfg: ConfigPrecios): GemaGroup[] {
   const map = new Map<TipoGema, GemaGroup>();
   for (const s of stocks) {
     if (s.cantidad <= 0) continue;
@@ -151,7 +153,7 @@ function agruparGemas(stocks: GemaPublico[]): GemaGroup[] {
       map.set(s.tipo, {
         tipo: s.tipo,
         totalCantidad: s.cantidad,
-        precioUnitario: Math.round(GEMA_PRECIOS[s.tipo] * GEMA_MULT_VENTA),
+        precioUnitario: precioVentaGema(s.tipo, cfg) ?? 0,
       });
     }
   }
@@ -162,14 +164,17 @@ function agruparGemas(stocks: GemaPublico[]): GemaGroup[] {
 // PÁGINA PRINCIPAL
 // =====================================================
 export default function ItemsPage() {
+  const cfg = useCfg();
   const [tab, setTab] = useState<Tab>("items");
   const [query, setQuery] = useState("");
   const [filterTipo, setFilterTipo] = useState<string>("");
   const [filterCategoria, setFilterCategoria] = useState<string>("");
   const [items, setItems] = useState<Item[]>([]);
-  const [jewels, setJewels] = useState<JewelGroup[]>([]);
-  const [seeds, setSeeds] = useState<SeedGroup[]>([]);
-  const [gemas, setGemas] = useState<GemaGroup[]>([]);
+  // Se guardan los stocks CRUDOS: los grupos (y sus precios) se derivan con la
+  // config vigente, así un cambio de coeficientes se ve sin recargar la página.
+  const [jewelsRaw, setJewelsRaw] = useState<JewelPublico[]>([]);
+  const [seedsRaw, setSeedsRaw] = useState<SeedPublico[]>([]);
+  const [gemasRaw, setGemasRaw] = useState<GemaPublico[]>([]);
   const [joyas, setJoyas] = useState<JoyaPublico[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,9 +194,9 @@ export default function ItemsPage() {
         if (resItems.error) throw resItems.error;
         setItems((resItems.data || []).map(adaptar));
 
-        if (resJewels.data) setJewels(agruparJewels(resJewels.data as JewelPublico[]));
-        if (resSeeds.data) setSeeds(agruparSeeds(resSeeds.data as SeedPublico[]));
-        if (resGemas.data) setGemas(agruparGemas(resGemas.data as GemaPublico[]));
+        if (resJewels.data) setJewelsRaw(resJewels.data as JewelPublico[]);
+        if (resSeeds.data) setSeedsRaw(resSeeds.data as SeedPublico[]);
+        if (resGemas.data) setGemasRaw(resGemas.data as GemaPublico[]);
         if (resJoyas.data) setJoyas(resJoyas.data as JoyaPublico[]);
       } catch (err) {
         console.error("Error cargando catálogo:", err);
@@ -202,6 +207,10 @@ export default function ItemsPage() {
     }
     cargar();
   }, []);
+
+  const jewels = useMemo(() => agruparJewels(jewelsRaw, cfg), [jewelsRaw, cfg]);
+  const seeds = useMemo(() => agruparSeeds(seedsRaw, cfg), [seedsRaw, cfg]);
+  const gemas = useMemo(() => agruparGemas(gemasRaw, cfg), [gemasRaw, cfg]);
 
   const filtrados = useMemo(() => {
     let result = items;

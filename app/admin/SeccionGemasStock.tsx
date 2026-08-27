@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { FieldLabel, TextInput, Select } from "@/components/ui/FormField";
-import { GEMA_PRECIOS, GEMA_LABELS, GEMA_MULT_VENTA, GemaTipo } from "@/lib/precios";
+import { gemaPrecioCompra, GEMA_LABELS, precioVentaGema as precioVentaGemaLib, GemaTipo } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
+import type { ConfigPrecios } from "@/lib/precios-config";
 import type { EstadoItem } from "@/lib/database.types";
 
 interface Gema {
@@ -15,14 +17,15 @@ interface Gema {
   created_at: string;
 }
 
-function precioCompraGema(tipo: GemaTipo, cantidad: number): number {
-  return GEMA_PRECIOS[tipo] * cantidad;
+function precioCompraGema(tipo: GemaTipo, cantidad: number, cfg: ConfigPrecios): number {
+  return gemaPrecioCompra(tipo, cfg) * cantidad;
 }
-function precioVentaGema(tipo: GemaTipo, cantidad: number): number {
-  return Math.round(precioCompraGema(tipo, cantidad) * GEMA_MULT_VENTA);
+function precioVentaGema(tipo: GemaTipo, cantidad: number, cfg: ConfigPrecios): number {
+  return (precioVentaGemaLib(tipo, cfg) ?? 0) * cantidad;
 }
 
 export default function SeccionGemasStock() {
+  const cfg = useCfg();
   const [gemas, setGemas] = useState<Gema[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState<EstadoItem | "todos">("activo");
@@ -120,10 +123,10 @@ export default function SeccionGemasStock() {
                   <td className="py-2 pr-3 text-text-primary">{GEMA_LABELS[g.tipo]}</td>
                   <td className="py-2 pr-3 text-right font-numeric text-neon-cyan">{g.cantidad}</td>
                   <td className="py-2 pr-3 text-right font-numeric text-text-secondary">
-                    {precioCompraGema(g.tipo, g.cantidad).toLocaleString("es-AR")}
+                    {precioCompraGema(g.tipo, g.cantidad, cfg).toLocaleString("es-AR")}
                   </td>
                   <td className="py-2 pr-3 text-right font-numeric font-bold text-neon-orange">
-                    {precioVentaGema(g.tipo, g.cantidad).toLocaleString("es-AR")}
+                    {precioVentaGema(g.tipo, g.cantidad, cfg).toLocaleString("es-AR")}
                   </td>
                   <td className="py-2 pr-3 text-text-secondary hidden md:table-cell">{g.dueno || "—"}</td>
                   <td className="py-2 pr-3"><EstadoBadge estado={g.estado} /></td>
@@ -205,6 +208,7 @@ function ActionsMenu({
 }
 
 function NuevaGemaForm({ onSaved }: { onSaved: () => void }) {
+  const cfg = useCfg();
   const [tipo, setTipo] = useState<"" | GemaTipo>("");
   const [cantidad, setCantidad] = useState("1");
   const [dueno, setDueno] = useState("");
@@ -225,8 +229,8 @@ function NuevaGemaForm({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  const compra = tipo ? GEMA_PRECIOS[tipo] * cantNum : 0;
-  const venta = tipo ? Math.round(compra * GEMA_MULT_VENTA) : 0;
+  const compra = tipo ? precioCompraGema(tipo, cantNum, cfg) : 0;
+  const venta = tipo ? precioVentaGema(tipo, cantNum, cfg) : 0;
 
   const opciones = (Object.keys(GEMA_LABELS) as GemaTipo[]).map((k) => ({
     value: k, label: GEMA_LABELS[k],

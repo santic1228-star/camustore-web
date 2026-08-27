@@ -3,7 +3,8 @@
 import { useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { FieldLabel, TextInput, Select, Checkbox, PillToggle } from "@/components/ui/FormField";
-import { precioArmadura, precioArma, precioAlas, precioEscudo, precioVentaEscudo, ESCUDO_NOMBRES, escudoLabel } from "@/lib/precios";
+import { precioArmadura, precioArma, precioAlas, precioEscudo, precioVentaEscudo, ESCUDO_NOMBRES, escudoLabel , precioVentaArmadura, precioVentaArma, precioVentaAlas } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 import { getRaza } from "@/lib/razas";
 import type { Categoria, TipoItem, Raza } from "@/lib/database.types";
 
@@ -107,24 +108,6 @@ export default function ItemFormModal({ onClose, onSaved, editItem }: Props) {
  *   - Jewel                 → ×2
  *   - Seed                  → ×3.5
  */
-function calcularPrecioVenta(
-  precioCompraCotizador: number,
-  categoria: "armadura" | "arma" | "ala" | "jewel" | "seed",
-  tipo: "s3" | "380" | "400" | null
-): number {
-  let mult = 1;
-  if (categoria === "armadura" || categoria === "arma") {
-    mult = tipo === "400" ? 4 : 3;
-  } else if (categoria === "ala") {
-    mult = 2.1;
-  } else if (categoria === "jewel") {
-    mult = 2;
-  } else if (categoria === "seed") {
-    mult = 3.5;
-  }
-  return Math.round(precioCompraCotizador * mult);
-}
-
 // =====================================================
 // COMÚN: footer con precio y botón guardar
 // =====================================================
@@ -189,6 +172,7 @@ function PriceFooter({
 // FORM: ARMADURA
 // =====================================================
 function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const cfg = useCfg();
   const isEdit = !!editItem;
   const [nombre, setNombre] = useState(editItem?.nombre || "");
   const [parte, setParte] = useState(editItem?.parte || "");
@@ -212,13 +196,15 @@ function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onS
     }
   }
 
-  const precioCompraCalc = useMemo(() => {
-    return precioArmadura({
-      hpDdRef, nivel: Number(nivel) || 0, tipo: tipo || null,
-      socket: tipo === "400" ? socket : null, luck,
-      forzarAdmin: true,
-    });
-  }, [hpDdRef, nivel, tipo, socket, luck]);
+  const inputArmadura = useMemo(() => ({
+    hpDdRef, nivel: Number(nivel) || 0, tipo: tipo || null,
+    socket: tipo === "400" ? socket : null, luck,
+    forzarAdmin: true,
+  }), [hpDdRef, nivel, tipo, socket, luck]);
+
+  // Lo que le pagás al jugador (ya con el ajuste de compra del panel aplicado).
+  const precioCompraCalc = useMemo(
+    () => precioArmadura(inputArmadura, cfg), [inputArmadura, cfg]);
 
   const precioCompraFinal = useMemo(() => {
     if (precioCompraOverride && Number(precioCompraOverride) > 0) {
@@ -227,10 +213,10 @@ function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onS
     return precioCompraCalc;
   }, [precioCompraOverride, precioCompraCalc]);
 
-  const precioVentaCalc = useMemo(() => {
-    if (precioCompraCalc === null) return null;
-    return calcularPrecioVenta(precioCompraCalc, "armadura", tipo || null);
-  }, [precioCompraCalc, tipo]);
+  // La venta sale de la REFERENCIA, no de la compra: ni el ajuste global ni un
+  // precio negociado a mano bajan el precio al que se publica el item.
+  const precioVentaCalc = useMemo(
+    () => precioVentaArmadura(inputArmadura, cfg), [inputArmadura, cfg]);
 
   async function guardar() {
     if (precioVentaCalc === null) return;
@@ -346,6 +332,7 @@ function FormArmadura({ onSaved, onClose, editItem }: { onClose: () => void; onS
 // FORM: ARMA
 // =====================================================
 function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const cfg = useCfg();
   const isEdit = !!editItem;
   const [nombre, setNombre] = useState(editItem?.nombre || "");
   const [parte, setParte] = useState(editItem?.parte || "");
@@ -373,16 +360,17 @@ function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved
     }
   }
 
-  const precioCompraCalc = useMemo(() => {
-    return precioArma({
-      exeRate, dmgLvl20, dmg2pct, speed7,
-      nivel: Number(nivel) || 0,
-      tipo: tipo || null,
-      socket: tipo === "400" ? socket : null,
-      luck, skill,
-      forzarAdmin: true,
-    });
-  }, [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill]);
+  const inputArma = useMemo(() => ({
+    exeRate, dmgLvl20, dmg2pct, speed7,
+    nivel: Number(nivel) || 0,
+    tipo: tipo || null,
+    socket: tipo === "400" ? socket : null,
+    luck, skill,
+    forzarAdmin: true,
+  }), [exeRate, dmgLvl20, dmg2pct, speed7, nivel, tipo, socket, luck, skill]);
+
+  const precioCompraCalc = useMemo(
+    () => precioArma(inputArma, cfg), [inputArma, cfg]);
 
   // precio_compra real (informativo)
   const precioCompraFinal = useMemo(() => {
@@ -392,10 +380,8 @@ function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved
     return precioCompraCalc;
   }, [precioCompraOverride, precioCompraCalc]);
 
-  const precioVentaCalc = useMemo(() => {
-    if (precioCompraCalc === null) return null;
-    return calcularPrecioVenta(precioCompraCalc, "arma", tipo || null);
-  }, [precioCompraCalc, tipo]);
+  const precioVentaCalc = useMemo(
+    () => precioVentaArma(inputArma, cfg), [inputArma, cfg]);
 
   async function guardar() {
     if (precioVentaCalc === null) return;
@@ -564,6 +550,7 @@ function FormArma({ onSaved, onClose, editItem }: { onClose: () => void; onSaved
 // FORM: ALA
 // =====================================================
 function FormAla({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const cfg = useCfg();
   const isEdit = !!editItem;
   const [nombre, setNombre] = useState(editItem?.nombre || "");
   const [nivel, setNivel] = useState(String(editItem?.nivel ?? 0));
@@ -578,12 +565,13 @@ function FormAla({ onSaved, onClose, editItem }: { onClose: () => void; onSaved:
   );
   const [saving, setSaving] = useState(false);
 
-  const precioCompraCalc = useMemo(() => {
-    return precioAlas({
-      ignore, returnOpc, lifeRecovery, luck,
-      nivel: Number(nivel) || 0,
-    });
-  }, [ignore, returnOpc, lifeRecovery, luck, nivel]);
+  const inputAlas = useMemo(() => ({
+    ignore, returnOpc, lifeRecovery, luck,
+    nivel: Number(nivel) || 0,
+  }), [ignore, returnOpc, lifeRecovery, luck, nivel]);
+
+  const precioCompraCalc = useMemo(
+    () => precioAlas(inputAlas, cfg), [inputAlas, cfg]);
 
   // precio_compra real (informativo, no afecta venta)
   const precioCompraFinal = useMemo(() => {
@@ -593,11 +581,8 @@ function FormAla({ onSaved, onClose, editItem }: { onClose: () => void; onSaved:
     return precioCompraCalc;
   }, [precioCompraOverride, precioCompraCalc]);
 
-  // Alas siempre × 2.1 (tipo s3 implícito)
-  const precioVentaCalc = useMemo(() => {
-    if (precioCompraCalc === null) return null;
-    return calcularPrecioVenta(precioCompraCalc, "ala", "s3");
-  }, [precioCompraCalc]);
+  const precioVentaCalc = useMemo(
+    () => precioVentaAlas(inputAlas, cfg), [inputAlas, cfg]);
 
   async function guardar() {
     if (precioVentaCalc === null) return;
@@ -693,6 +678,7 @@ function FormAla({ onSaved, onClose, editItem }: { onClose: () => void; onSaved:
 // FORM: ESCUDO (categoría escudo, solo tipo 400, venta ×6)
 // =====================================================
 function FormEscudo({ onSaved, onClose, editItem }: { onClose: () => void; onSaved: () => void; editItem?: EditableItem }) {
+  const cfg = useCfg();
   const isEdit = !!editItem;
   const [nombreCodigo, setNombreCodigo] = useState(editItem?.nombre || "");  // código del escudo
   const [nivel, setNivel] = useState(String(editItem?.nivel ?? 9));
@@ -707,18 +693,20 @@ function FormEscudo({ onSaved, onClose, editItem }: { onClose: () => void; onSav
   );
   const [saving, setSaving] = useState(false);
 
-  const precioCompraCalc = useMemo(() => {
-    return precioEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill, forzarAdmin: true });
-  }, [hpDdRef, nivel, socket, luck, skill]);
+  const inputEscudo = useMemo(
+    () => ({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill, forzarAdmin: true }),
+    [hpDdRef, nivel, socket, luck, skill]);
+
+  const precioCompraCalc = useMemo(
+    () => precioEscudo(inputEscudo, cfg), [inputEscudo, cfg]);
 
   const precioCompraFinal = useMemo(() => {
     if (precioCompraOverride && Number(precioCompraOverride) > 0) return Number(precioCompraOverride);
     return precioCompraCalc;
   }, [precioCompraOverride, precioCompraCalc]);
 
-  const precioVentaCalc = useMemo(() => {
-    return precioVentaEscudo({ hpDdRef, nivel: Number(nivel) || 0, socket, luck, skill, forzarAdmin: true });
-  }, [hpDdRef, nivel, socket, luck, skill]);
+  const precioVentaCalc = useMemo(
+    () => precioVentaEscudo(inputEscudo, cfg), [inputEscudo, cfg]);
 
   async function guardar() {
     if (precioVentaCalc === null || !nombreCodigo) return;

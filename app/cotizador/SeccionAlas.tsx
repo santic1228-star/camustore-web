@@ -4,8 +4,10 @@ import { useState, useMemo } from "react";
 import { FieldLabel, TextInput, Checkbox, PillToggle } from "@/components/ui/FormField";
 import PriceResult from "@/components/PriceResult";
 import { precioAlas, AlasInput } from "@/lib/precios";
+import { useCfg } from "@/lib/precios-contexto";
 
 export default function SeccionAlas() {
+  const cfg = useCfg();
   const [nombre, setNombre] = useState("");
   const [nivel, setNivel] = useState("0");
   const [ignore, setIgnore] = useState(false);
@@ -18,8 +20,8 @@ export default function SeccionAlas() {
       ignore, returnOpc, lifeRecovery, luck,
       nivel: Number(nivel) || 0,
     };
-    return precioAlas(input);
-  }, [ignore, returnOpc, lifeRecovery, luck, nivel]);
+    return precioAlas(input, cfg);
+  }, [ignore, returnOpc, lifeRecovery, luck, nivel, cfg]);
 
   const nOpc = [ignore, returnOpc, lifeRecovery].filter(Boolean).length;
   const opciones = [

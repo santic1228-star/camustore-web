@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIG, whatsappLink } from "@/lib/config";
+import PrecioPromo, { usePrecioPromo, lineaPrecioWhatsapp, detallePromoCarrito } from "@/components/ui/PrecioPromo";
 import { useCarrito } from "@/lib/carrito";
 import { joyaLabel } from "@/lib/precios";
 import { trackEvento } from "@/lib/analytics";
@@ -12,6 +13,7 @@ interface Props {
 
 export default function JoyaCard({ joya }: Props) {
   const { tipo, nombre, nivel, life_recovery, tercera_opcion, precio_venta } = joya;
+  const precio = usePrecioPromo(precio_venta, "joya");
   const { agregar } = useCarrito();
   const icono = tipo === "anillo" ? "💍" : "📿";
   const label = joyaLabel(tipo, nombre);
@@ -26,7 +28,7 @@ export default function JoyaCard({ joya }: Props) {
 • ${label} +${nivel}
 • Life Recovery: ${life_recovery}%
 ${tipo === "anillo" ? "• HP + DD + REF" : `• ${opcionesPendiente}`}
-• Precio: ${precio_venta.toLocaleString("es-AR")} ${CONFIG.CURRENCY}`;
+${lineaPrecioWhatsapp(precio)}`;
 
   return (
     <div className="gamer-card rounded-lg p-5 border border-luck-gold/30 flex flex-col gap-3">
@@ -52,20 +54,14 @@ ${tipo === "anillo" ? "• HP + DD + REF" : `• ${opcionesPendiente}`}
       </div>
 
       <div className="flex items-end justify-between">
-        <div>
-          <p className="text-[10px] font-body text-text-muted uppercase tracking-wider mb-0.5">Precio</p>
-          <p className="font-numeric font-bold text-xl neon-text-orange">
-            {precio_venta.toLocaleString("es-AR")}
-          </p>
-          <p className="text-[10px] font-body text-text-muted">{CONFIG.CURRENCY}</p>
-        </div>
+        <PrecioPromo precio={precio} />
         <div className="flex flex-col gap-1.5">
           <button
             onClick={() => agregar({
               tipo: "compra",
               titulo: `${label} +${nivel}`,
-              detalle: `${life_recovery}% life`,
-              precio: precio_venta,
+              detalle: `${life_recovery}% life${detallePromoCarrito(precio)}`,
+              precio: precio.final,
             })}
             className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-4 py-2 rounded text-xs font-body uppercase tracking-wider hover:bg-neon-cyan/25 transition-colors"
           >
@@ -79,7 +75,7 @@ ${tipo === "anillo" ? "• HP + DD + REF" : `• ${opcionesPendiente}`}
               tipo: "consultar_item",
               item_categoria: "joya",
               item_nombre: `${label} +${nivel} ${life_recovery}%`,
-              item_precio: precio_venta,
+              item_precio: precio.final,
             })}
             className="btn-whatsapp px-4 py-2 rounded text-xs font-body uppercase tracking-wider text-center"
           >

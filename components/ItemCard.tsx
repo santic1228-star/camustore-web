@@ -4,6 +4,8 @@ import { CONFIG, whatsappLink } from "@/lib/config";
 import { RAZA_COLORS } from "@/lib/razas";
 import { trackEvento } from "@/lib/analytics";
 import { useCarrito } from "@/lib/carrito";
+import PrecioPromo, { usePrecioPromo, lineaPrecioWhatsapp, detallePromoCarrito } from "@/components/ui/PrecioPromo";
+import type { CategoriaPrecio } from "@/lib/precios-config";
 import type { Item } from "@/lib/types";
 
 interface Props {
@@ -14,12 +16,13 @@ export default function ItemCard({ item }: Props) {
   const raceColor = RAZA_COLORS[item.raza] || RAZA_COLORS[""];
   const isLuck = item.luck;
   const { agregar } = useCarrito();
+  const precio = usePrecioPromo(item.precio_venta, item.categoria as CategoriaPrecio);
 
   const wpMessage = `${CONFIG.WHATSAPP_GREETING} Me interesa este item:
 • ${item.nombre} ${item.parte}
 • Tipo: ${item.tipo} ${item.socket ? `· socket ${item.socket}` : ""}
 • Nivel ${item.nivel} · ${item.opciones} ${item.luck ? "· luck" : ""}
-• Precio: ${item.precio_venta.toLocaleString("es-AR")} ${CONFIG.CURRENCY}`;
+${lineaPrecioWhatsapp(precio)}`;
 
   function onConsultar() {
     trackEvento({
@@ -27,7 +30,7 @@ export default function ItemCard({ item }: Props) {
       item_categoria: item.categoria,
       item_nombre: `${item.nombre} ${item.parte}`.trim(),
       item_tipo: item.tipo,
-      item_precio: item.precio_venta,
+      item_precio: precio.final,
     });
   }
 
@@ -78,20 +81,14 @@ export default function ItemCard({ item }: Props) {
 
       {/* Precio */}
       <div className="flex items-end justify-between mt-1">
-        <div>
-          <p className="text-xs text-text-muted uppercase tracking-wider font-body">Precio</p>
-          <p className="font-numeric font-bold text-xl sm:text-2xl neon-text-orange leading-none">
-            {item.precio_venta.toLocaleString("es-AR")}
-            <span className="text-xs ml-1 text-text-secondary font-body">{CONFIG.CURRENCY}</span>
-          </p>
-        </div>
+        <PrecioPromo precio={precio} />
         <div className="flex flex-col gap-1.5">
           <button
             onClick={() => agregar({
               tipo: "compra",
               titulo: `${item.nombre} ${item.parte}`.trim(),
-              detalle: `${item.tipo}${item.socket ? ` · ${item.socket} sock` : ""} · nv${item.nivel}${item.luck ? " · luck" : ""}`,
-              precio: item.precio_venta,
+              detalle: `${item.tipo}${item.socket ? ` · ${item.socket} sock` : ""} · nv${item.nivel}${item.luck ? " · luck" : ""}${detallePromoCarrito(precio)}`,
+              precio: precio.final,
             })}
             className="bg-neon-cyan/15 border border-neon-cyan/50 text-neon-cyan px-3 py-2 rounded text-xs font-body uppercase tracking-wider hover:bg-neon-cyan/25 transition-colors"
           >
