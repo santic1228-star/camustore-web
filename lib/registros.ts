@@ -19,7 +19,7 @@
 
 import { BOSSES } from "./bosses";
 import { DIA_MS, DIA_SEG, etiquetaDia, formatDuracion, formatHMS, OFFSET_SERVIDOR_MS, pad2 } from "./tiempo";
-import type { EventoRegistroRow, TipoEventoRegistro } from "./database.types";
+import type { EventoRegistroRow, TipoEventoRegistro, MotivoPelea } from "./database.types";
 
 // =====================================================
 // Hora servidor = Argentina (UTC-3 fijo, sin horario de verano desde 2009)
@@ -143,6 +143,36 @@ export interface RegistroNuevo {
   horaEventoMs: number;
   standbySeg: number | null;
   resultadoMs: number;
+  /** "Se pelea": otros guilds conocen el horario (27/08). */
+  sePelea?: boolean;
+  sePeleaMotivo?: MotivoPelea | null;
+}
+
+// =====================================================
+// "Se pelea" (27/08/2026)
+// =====================================================
+
+export const MOTIVOS_PELEA: { value: MotivoPelea; label: string; corto: string }[] = [
+  { value: "nos_vieron", label: "Nos vieron entrar", corto: "nos vieron" },
+  { value: "lo_perdimos", label: "Lo perdimos (lo mató otro guild)", corto: "lo perdimos" },
+  { value: "otro", label: "Otro motivo", corto: "" },
+];
+
+export function motivoPeleaCorto(motivo: MotivoPelea | null | undefined): string {
+  return MOTIVOS_PELEA.find((m) => m.value === motivo)?.corto ?? "";
+}
+
+/** Texto del tag, ej. "⚔ Se pelea · nos vieron". */
+export function textoSePelea(motivo: MotivoPelea | null | undefined): string {
+  const c = motivoPeleaCorto(motivo);
+  return c ? `⚔ Se pelea · ${c}` : "⚔ Se pelea";
+}
+
+/** "Van: A, B y C" para mensajes. Vacío si no hay nadie. */
+export function textoVan(personajes: string[]): string {
+  if (personajes.length === 0) return "";
+  if (personajes.length === 1) return `Va: ${personajes[0]}`;
+  return `Van: ${personajes.slice(0, -1).join(", ")} y ${personajes[personajes.length - 1]}`;
 }
 
 /** Boss: muerte (epoch ms) + cooldown del boss. */
@@ -251,9 +281,18 @@ export function textoHace(ms: number, ahoraMs: number): string {
   return `hace ${formatDuracion(seg)}`;
 }
 
+export interface ExtrasMensaje {
+  sePelea?: boolean;
+  sePeleaMotivo?: MotivoPelea | null;
+  /** Personajes apuntados. */
+  van?: string[];
+}
+
 /** Texto para compartir en el chat de la guild. */
-export function mensajeRegistro(config: EventoConfig, e: EstadoRegistro): string {
+export function mensajeRegistro(config: EventoConfig, e: EstadoRegistro, extras: ExtrasMensaje = {}): string {
   const dia = e.diasExtra !== 0 ? ` ${etiquetaDiaServidor(e.diasExtra)} (${fechaCortaServidor(e.resultadoMs)})` : "";
   const falta = e.listo ? "" : ` · ${textoFaltaRegistro(e).toLowerCase()}`;
-  return `${config.icono} ${config.nombre} ${config.etiquetaResultado} ${e.hms} hora servidor${dia}${falta}`;
+  const pelea = extras.sePelea ? ` · ${textoSePelea(extras.sePeleaMotivo)}` : "";
+  const van = extras.van && extras.van.length > 0 ? `\n${textoVan(extras.van)}` : "";
+  return `${config.icono} ${config.nombre} ${config.etiquetaResultado} ${e.hms} hora servidor${dia}${falta}${pelea}${van}`;
 }

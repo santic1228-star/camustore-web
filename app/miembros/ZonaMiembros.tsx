@@ -4,13 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "@/lib/auth";
 import {
+  cargarAsistencias,
   cargarRegistros,
   contarAportes,
   eliminarRegistro,
+  setMiRaza,
   type Aporte,
   type RegistrosCargados,
   type SesionMiembro,
 } from "@/lib/miembros";
+import AvatarRaza, { RAZAS_AVATAR, RAZA_AVATAR_LABEL } from "@/components/ui/AvatarRaza";
+import type { AsistenciaRow, Raza } from "@/lib/database.types";
 import {
   AVISOS_MIN,
   EVENTOS,
@@ -18,6 +22,7 @@ import {
   fechaCortaServidor,
   hmServidor,
   textoHace,
+  textoSePelea,
   vistaDeRegistro,
 } from "@/lib/registros";
 import {
@@ -51,6 +56,12 @@ export default function ZonaMiembros({ sesion }: Props) {
   // null hasta montar en el cliente (evita diferencias servidor/cliente al hidratar).
   const [ahora, setAhora] = useState<number | null>(null);
   const [aportes, setAportes] = useState<Aporte[] | null>(null);
+  /** Apuntados por registro_id, solo de los registros vigentes (27/08). */
+  const [asistencias, setAsistencias] = useState<Record<string, AsistenciaRow[]>>({});
+  /** Avatar del logueado (se edita acá y se refleja al apuntarse). */
+  const [miRaza, setMiRazaLocal] = useState<Raza | null>(sesion.miembro?.raza ?? null);
+  const [guardandoRaza, setGuardandoRaza] = useState(false);
+  const [errorRaza, setErrorRaza] = useState<string | null>(null);
   const [avisosOn, setAvisosOn] = useState(false);
   const [permisoNotif, setPermisoNotif] = useState<string>("default");
   /** Umbrales ya disparados en esta sesión: "tipo:resultadoMs:umbral". */
@@ -64,6 +75,8 @@ export default function ZonaMiembros({ sesion }: Props) {
       setError(null);
       setUltimaCarga(Date.now());
       contarAportes().then(setAportes).catch(() => {});
+      const ids = Object.values(d.vigentes).map((r) => r.id);
+      cargarAsistencias(ids).then(setAsistencias).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar los registros.");
     }
@@ -182,6 +195,19 @@ export default function ZonaMiembros({ sesion }: Props) {
     };
   }, [ahora, datos]);
 
+  async function elegirRaza(raza: Raza | null) {
+    setGuardandoRaza(true);
+    setErrorRaza(null);
+    try {
+      await setMiRaza(raza);
+      setMiRazaLocal(raza);
+    } catch (e) {
+      setErrorRaza(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardandoRaza(false);
+    }
+  }
+
   async function borrar(id: string) {
     if (!confirm("¿Borrar este registro? Solo el admin puede hacerlo.")) return;
     try {
@@ -260,6 +286,45 @@ export default function ZonaMiembros({ sesion }: Props) {
           </button>
         </div>
 
+        {/* ============ Tu avatar (27/08) ============ */}
+        <div className="mb-4 sm:mb-6 rounded-lg border border-border-base bg-bg-card/50 p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 min-w-0">
+              <AvatarRaza raza={miRaza} size={36} />
+              <div className="min-w-0">
+                <p className="font-body text-sm text-text-primary">
+                  <span className="font-bold">{sesion.personaje}</span>
+                  <span className="text-text-muted"> · {miRaza ? RAZA_AVATAR_LABEL[miRaza] : "sin avatar"}</span>
+                </p>
+                <p className="font-body text-[11px] text-text-muted mt-0.5">
+                  {sesion.miembro
+                    ? "Elegí tu raza: es el ícono que ven los demás cuando te apuntás a un evento."
+                    : "Sos admin sin fila de miembro: agregate desde /admin → Miembros para elegir avatar."}
+                </p>
+              </div>
+            </div>
+            {sesion.miembro && (
+              <div className="flex flex-wrap gap-1.5">
+                {RAZAS_AVATAR.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => elegirRaza(r)}
+                    disabled={guardandoRaza}
+                    title={RAZA_AVATAR_LABEL[r]}
+                    className={`rounded-full p-0.5 transition-all disabled:opacity-50 ${
+                      miRaza === r ? "ring-2 ring-neon-cyan scale-110" : "opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <AvatarRaza raza={r} size={30} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {errorRaza && <p className="font-body text-xs text-danger-red mt-2">{errorRaza}</p>}
+        </div>
+
         {/* ============ Las tres tarjetas ============ */}
         <div className="space-y-4 sm:space-y-6">
           {EVENTOS.map((config) => (
@@ -269,7 +334,13 @@ export default function ZonaMiembros({ sesion }: Props) {
               registro={datos?.vigentes[config.tipo]}
               ahora={datos ? ahora : null}
               sesion={sesion}
+              asistencias={(() => {
+                const r = datos?.vigentes[config.tipo];
+                return r ? asistencias[r.id] ?? [] : [];
+              })()}
+              miRaza={miRaza}
               onGuardado={recargar}
+              onCambioAsistencia={recargar}
             />
           ))}
         </div>
@@ -310,6 +381,11 @@ export default function ZonaMiembros({ sesion }: Props) {
                         {vigente && (
                           <span className="ml-2 badge bg-success-green/15 text-success-green border border-success-green/40">
                             vigente
+                          </span>
+                        )}
+                        {r.se_pelea && (
+                          <span className="ml-2 badge bg-danger-red/15 text-danger-red border border-danger-red/40">
+                            {textoSePelea(r.se_pelea_motivo)}
                           </span>
                         )}
                       </p>
@@ -397,6 +473,16 @@ export default function ZonaMiembros({ sesion }: Props) {
                 Pasada la apertura conocida, la tarjeta pasa a{" "}
                 <span className="text-neon-orange">Horario desconocido</span> hasta que alguien cargue la
                 captura del fin del evento.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="text-neon-cyan font-bold">·</span>
+              <span>
+                <span className="text-danger-red">⚔ Se pelea</span> se marca al cargar cuando creemos que otros
+                guilds saben el horario (nos vieron entrar, lo perdimos). Con{" "}
+                <span className="text-neon-cyan">Me apunto</span> avisás que pensás ir; se ve tu avatar y tu nombre
+                debajo del timer. Es intención, no compromiso. Si alguien carga un horario nuevo, hay que apuntarse
+                de nuevo.
               </span>
             </li>
             <li className="flex gap-3">

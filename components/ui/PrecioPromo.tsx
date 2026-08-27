@@ -39,6 +39,11 @@ export default function PrecioPromo({ precio, variante = "card", etiqueta = "Pre
 
   return (
     <div>
+      {/* Cartel marketinero (solo en tarjetas): "🔥 HOT SALE · 30% OFF".
+          El texto sale del panel de precios (Texto del cartel); el % es el que
+          efectivamente aplica a esta categoría (global u override). */}
+      {grande && precio.enPromo && <CartelPromo precio={precio} />}
+
       <div className="flex items-center gap-1.5">
         <p className="text-xs text-text-muted uppercase tracking-wider font-body">{etiqueta}</p>
         {precio.enPromo && (
@@ -62,6 +67,22 @@ export default function PrecioPromo({ precio, variante = "card", etiqueta = "Pre
         {precio.final.toLocaleString("es-AR")}
         <span className="text-xs ml-1 text-text-secondary font-body">{CONFIG.CURRENCY}</span>
       </p>
+    </div>
+  );
+}
+
+/** Cinta roja con brillo, pensada para llamar la atención en el catálogo. */
+export function CartelPromo({ precio, className = "" }: { precio: PrecioConPromo; className?: string }) {
+  if (!precio.enPromo) return null;
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 mb-1.5 px-2.5 py-1 rounded-sm bg-gradient-to-r from-danger-red to-neon-orange text-bg-deep font-display font-black text-[11px] sm:text-xs uppercase tracking-[0.18em] shadow-[0_0_16px_rgba(255,51,102,0.55)] ${className}`}
+      aria-label={`${precio.etiqueta}, ${precio.pct}% de descuento`}
+    >
+      <span aria-hidden>🔥</span>
+      <span>{precio.etiqueta}</span>
+      <span className="opacity-60">·</span>
+      <span className="font-numeric">{precio.pct}% OFF</span>
     </div>
   );
 }

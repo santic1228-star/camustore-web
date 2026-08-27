@@ -14,6 +14,9 @@ import type {
   MiembroInsert,
   MiembroRow,
   TipoEventoRegistro,
+  AsistenciaRow,
+  AsistenciaInsert,
+  Raza,
 } from "./database.types";
 
 // =====================================================
@@ -199,4 +202,63 @@ export async function contarAportes(): Promise<Aporte[]> {
 export async function eliminarRegistro(id: string): Promise<void> {
   const { error } = await supabase.from("eventos_registros").delete().eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+// =====================================================
+// Avatar por raza (27/08)
+// =====================================================
+
+/**
+ * Cambia SOLO la raza del miembro logueado, vía la función `miembro_set_raza`
+ * (security definer): la política de update de `miembros` sigue siendo admin.
+ * Falla con mensaje claro si el logueado no tiene fila en `miembros`.
+ */
+export async function setMiRaza(raza: Raza | null): Promise<void> {
+  const { error } = await supabase.rpc("miembro_set_raza", { nueva: raza });
+  if (error) throw new Error(`No se pudo guardar el avatar: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
+}
+
+// =====================================================
+// Asistencias: quién se apunta a qué registro (27/08)
+// =====================================================
+
+/** Asistencias de varios registros, agrupadas por registro_id (orden de llegada). */
+export async function cargarAsistencias(registroIds: string[]): Promise<Record<string, AsistenciaRow[]>> {
+  const out: Record<string, AsistenciaRow[]> = {};
+  if (registroIds.length === 0) return out;
+  const { data, error } = await supabase
+    .from("eventos_asistencias")
+    .select("*")
+    .in("registro_id", registroIds)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  for (const a of (data ?? []) as AsistenciaRow[]) {
+    (out[a.registro_id] ??= []).push(a);
+  }
+  return out;
+}
+
+/** Me apunto a un registro. Si ya estaba, no duplica (unique registro+email). */
+export async function apuntarse(registroId: string, sesion: SesionMiembro, raza: Raza | null): Promise<void> {
+  const fila: AsistenciaInsert = {
+    registro_id: registroId,
+    email: sesion.email,
+    personaje: sesion.personaje,
+    miembro_id: sesion.miembro?.id ?? null,
+    raza,
+  };
+  const { error } = await supabase.from("eventos_asistencias").insert(fila);
+  if (error && error.code !== "23505") {
+    throw new Error(`No se pudo apuntar: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
+  }
+}
+
+/** Me bajo de un registro (o el admin baja a alguien). */
+export async function desapuntarse(registroId: string, email: string): Promise<void> {
+  const { error } = await supabase
+    .from("eventos_asistencias")
+    .delete()
+    .eq("registro_id", registroId)
+    .eq("email", email.toLowerCase());
+  if (error) throw new Error(`No se pudo bajar: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
 }

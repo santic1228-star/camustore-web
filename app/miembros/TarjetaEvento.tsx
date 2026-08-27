@@ -5,6 +5,7 @@ import CampoHud from "@/components/ui/CampoHud";
 import { mascaraHora, parseHoraServidor } from "@/lib/tiempo";
 import { mascaraStandby, parseStandby } from "@/lib/gaion";
 import {
+  MOTIVOS_PELEA,
   epochDesdeHoraServidor,
   etiquetaDiaServidor,
   fechaCortaServidor,
@@ -14,12 +15,14 @@ import {
   nuevoRegistroGaion,
   textoFaltaRegistro,
   textoHace,
+  textoSePelea,
   vistaDeRegistro,
   type EventoConfig,
   type RegistroNuevo,
 } from "@/lib/registros";
-import { insertarRegistro, type SesionMiembro } from "@/lib/miembros";
-import type { EventoRegistroRow } from "@/lib/database.types";
+import { apuntarse, desapuntarse, insertarRegistro, type SesionMiembro } from "@/lib/miembros";
+import AvatarRaza from "@/components/ui/AvatarRaza";
+import type { AsistenciaRow, EventoRegistroRow, MotivoPelea, Raza } from "@/lib/database.types";
 
 // =====================================================
 // Una tarjeta por evento (Gaion / Kundun / Cryonox):
@@ -33,10 +36,17 @@ interface Props {
   /** Epoch ms del reloj del dispositivo; null hasta hidratar. */
   ahora: number | null;
   sesion: SesionMiembro;
+  /** Apuntados al registro vigente (27/08). */
+  asistencias: AsistenciaRow[];
+  /** Avatar del logueado, para el snapshot al apuntarse. */
+  miRaza: Raza | null;
   onGuardado: () => void;
+  onCambioAsistencia: () => void;
 }
 
-export default function TarjetaEvento({ config, registro, ahora, sesion, onGuardado }: Props) {
+export default function TarjetaEvento({
+  config, registro, ahora, sesion, asistencias, miRaza, onGuardado, onCambioAsistencia,
+}: Props) {
   const esGaion = config.tipo === "gaion";
   const [formAbierto, setFormAbierto] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -49,10 +59,34 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
 
   const mostrarForm = formAbierto || !registro;
 
+  const extras = {
+    sePelea: registro?.se_pelea ?? false,
+    sePeleaMotivo: registro?.se_pelea_motivo ?? null,
+    van: asistencias.map((a) => a.personaje),
+  };
+  const yoVoy = asistencias.some((a) => a.email === sesion.email);
+  const [cambiandoAsis, setCambiandoAsis] = useState(false);
+  const [errorAsis, setErrorAsis] = useState<string | null>(null);
+
+  async function toggleVoy() {
+    if (!registro) return;
+    setCambiandoAsis(true);
+    setErrorAsis(null);
+    try {
+      if (yoVoy) await desapuntarse(registro.id, sesion.email);
+      else await apuntarse(registro.id, sesion, miRaza);
+      onCambioAsistencia();
+    } catch (e) {
+      setErrorAsis(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCambiandoAsis(false);
+    }
+  }
+
   async function copiar() {
     if (!vista) return;
     try {
-      await navigator.clipboard.writeText(mensajeRegistro(config, vista.estado));
+      await navigator.clipboard.writeText(mensajeRegistro(config, vista.estado, extras));
       setCopiado(true);
       setTimeout(() => setCopiado(false), 1800);
     } catch {
@@ -62,7 +96,7 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
 
   async function compartir() {
     if (!vista) return;
-    const text = mensajeRegistro(config, vista.estado);
+    const text = mensajeRegistro(config, vista.estado, extras);
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ text });
@@ -103,6 +137,15 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
             <p className="font-body text-xs text-text-secondary mt-1 truncate">{config.detalle}</p>
           </div>
         </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+        {registro?.se_pelea && !vista?.desconocido && (
+          <span
+            className="badge whitespace-nowrap border bg-danger-red/15 text-danger-red border-danger-red/50"
+            title="Creemos que otros guilds saben el horario"
+          >
+            {textoSePelea(registro.se_pelea_motivo)}
+          </span>
+        )}
         {aviso !== null && (
           <span
             className={`badge whitespace-nowrap animate-pulse border ${
@@ -114,6 +157,7 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
             ⚠ en menos de {aviso} min
           </span>
         )}
+        </div>
       </header>
 
       {/* ============ Registro vigente ============ */}
@@ -216,6 +260,51 @@ export default function TarjetaEvento({ config, registro, ahora, sesion, onGuard
               )}
             </p>
 
+            {/* ============ Apuntados (27/08) ============ */}
+            {!vista.estado.vencido && (
+              <div className="mt-4 rounded-lg border border-border-base bg-bg-deep/40 p-3">
+                {asistencias.length === 0 ? (
+                  <p className="font-body text-xs text-text-muted">Nadie se apuntó todavía.</p>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+                    <span className="font-body text-xs uppercase tracking-[0.25em] text-text-muted">
+                      {asistencias.length === 1 ? "Va" : "Van"}
+                    </span>
+                    {asistencias.map((a) => (
+                      <span
+                        key={a.id}
+                        className={`inline-flex items-center gap-1.5 font-body text-sm ${
+                          a.email === sesion.email ? "text-neon-cyan" : "text-text-primary"
+                        }`}
+                      >
+                        <AvatarRaza raza={a.raza} size={22} />
+                        {a.personaje}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-center gap-3 mt-2.5">
+                  <button
+                    type="button"
+                    onClick={toggleVoy}
+                    disabled={cambiandoAsis}
+                    className={`px-4 py-1.5 rounded font-body text-xs uppercase tracking-widest border transition-colors disabled:opacity-50 ${
+                      yoVoy
+                        ? "bg-success-green/15 text-success-green border-success-green/50 hover:bg-danger-red/10 hover:text-danger-red hover:border-danger-red/50"
+                        : "border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan/10"
+                    }`}
+                    title={yoVoy ? "Click para bajarte" : "Un click y te ven apuntado"}
+                  >
+                    {cambiandoAsis ? "…" : yoVoy ? "✓ Voy" : "Me apunto"}
+                  </button>
+                </div>
+                {errorAsis && <p className="font-body text-xs text-danger-red mt-2">{errorAsis}</p>}
+                <p className="font-body text-[11px] text-text-muted mt-2">
+                  Apuntarse es intención, no compromiso: alguno puede no llegar.
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mt-4">
               <button
                 type="button"
@@ -290,6 +379,8 @@ function useGuardar(sesion: SesionMiembro, config: EventoConfig, onGuardado: () 
         miembro_id: sesion.miembro?.id ?? null,
         cargado_por_email: sesion.email,
         cargado_por_personaje: sesion.personaje,
+        se_pelea: nuevo.sePelea ?? false,
+        se_pelea_motivo: nuevo.sePelea ? (nuevo.sePeleaMotivo ?? "otro") : null,
       });
       onGuardado();
     } catch (e) {
@@ -309,6 +400,56 @@ interface FormProps {
 }
 
 // =====================================================
+// "Se pelea" (27/08): checkbox + motivo, compartido por los dos forms
+// =====================================================
+
+interface EstadoPelea {
+  sePelea: boolean;
+  motivo: MotivoPelea;
+}
+
+function usePelea(): [EstadoPelea, (p: EstadoPelea) => void] {
+  return useState<EstadoPelea>({ sePelea: false, motivo: "nos_vieron" });
+}
+
+function CampoPelea({ valor, onChange }: { valor: EstadoPelea; onChange: (p: EstadoPelea) => void }) {
+  return (
+    <div className="rounded-lg border border-border-base bg-bg-deep/40 p-3 space-y-2">
+      <label className="flex items-center gap-2.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={valor.sePelea}
+          onChange={(e) => onChange({ ...valor, sePelea: e.target.checked })}
+          className="w-4 h-4 accent-[#ff3366]"
+        />
+        <span className="font-body text-sm text-text-primary">
+          ⚔ <span className="font-bold">Se pelea</span>
+          <span className="text-text-muted"> · creemos que otros guilds saben el horario</span>
+        </span>
+      </label>
+      {valor.sePelea && (
+        <div className="flex flex-wrap gap-2 pl-6">
+          {MOTIVOS_PELEA.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => onChange({ ...valor, motivo: m.value })}
+              className={`px-2.5 py-1 rounded font-body text-xs border transition-colors ${
+                valor.motivo === m.value
+                  ? "bg-danger-red/15 text-danger-red border-danger-red/50"
+                  : "border-border-base text-text-secondary hover:border-border-strong"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================
 // Form boss: hora de la muerte (HH:MM) o "Lo acabo de matar"
 // =====================================================
 
@@ -316,15 +457,17 @@ function FormBoss({ sesion, config, onGuardado }: FormProps) {
   const [hora, setHora] = useState("");
   const horaP = useMemo(() => parseHoraServidor(hora), [hora]);
   const { guardar, guardando, error } = useGuardar(sesion, config, onGuardado);
+  const [pelea, setPelea] = usePelea();
+  const conPelea = (r: RegistroNuevo): RegistroNuevo => ({ ...r, sePelea: pelea.sePelea, sePeleaMotivo: pelea.motivo });
 
   function guardarTipeada() {
     if (horaP.seg === null) return;
     const muerteMs = epochDesdeHoraServidor(horaP.seg, Date.now());
-    guardar(nuevoRegistroBoss(config, muerteMs));
+    guardar(conPelea(nuevoRegistroBoss(config, muerteMs)));
   }
 
   function guardarAhora() {
-    guardar(nuevoRegistroBoss(config, Date.now()));
+    guardar(conPelea(nuevoRegistroBoss(config, Date.now())));
   }
 
   return (
@@ -332,6 +475,7 @@ function FormBoss({ sesion, config, onGuardado }: FormProps) {
       <p className="font-body text-xs uppercase tracking-[0.3em] text-text-muted">
         Cargar la muerte · lo ven todos
       </p>
+      <CampoPelea valor={pelea} onChange={setPelea} />
       <button
         type="button"
         onClick={guardarAhora}
@@ -379,6 +523,7 @@ function FormGaion({ sesion, config, onGuardado }: FormProps) {
   const horaP = useMemo(() => parseHoraServidor(hora), [hora]);
   const standbyP = useMemo(() => parseStandby(standby), [standby]);
   const { guardar, guardando, error } = useGuardar(sesion, config, onGuardado);
+  const [pelea, setPelea] = usePelea();
 
   const listo = horaP.seg !== null && standbyP.seg !== null;
 
@@ -391,7 +536,7 @@ function FormGaion({ sesion, config, onGuardado }: FormProps) {
 
   function guardarCaptura() {
     if (!preview) return;
-    guardar(preview);
+    guardar({ ...preview, sePelea: pelea.sePelea, sePeleaMotivo: pelea.motivo });
   }
 
   return (
@@ -427,6 +572,7 @@ function FormGaion({ sesion, config, onGuardado }: FormProps) {
           ayudaNormal="El Standby Time de la captura · ignorá el número entre paréntesis"
         />
       </div>
+      <CampoPelea valor={pelea} onChange={setPelea} />
       {preview && (
         <p className="font-body text-xs text-text-secondary text-center">
           Se guarda: abre a las{" "}

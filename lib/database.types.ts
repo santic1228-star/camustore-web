@@ -315,6 +315,8 @@ export interface MiembroRow {
   personaje: string;
   activo: boolean;
   notas: string | null;
+  /** Avatar elegido por el miembro (27/08). null = todavía no eligió. */
+  raza: Raza | null;
   created_at: string;
   updated_at: string;
 }
@@ -322,7 +324,11 @@ export interface MiembroRow {
 export type MiembroInsert = Pick<MiembroRow, "email" | "personaje"> & {
   activo?: boolean;
   notas?: string | null;
+  raza?: Raza | null;
 };
+
+/** Por qué creemos que se va a pelear en ese evento (27/08). */
+export type MotivoPelea = "nos_vieron" | "lo_perdimos" | "otro";
 
 export interface EventoRegistroRow {
   id: string;
@@ -337,6 +343,9 @@ export interface EventoRegistroRow {
   cargado_por_email: string;
   cargado_por_personaje: string;
   notas: string | null;
+  /** "Se pelea": otros guilds conocen el horario (27/08). Default false. */
+  se_pelea: boolean;
+  se_pelea_motivo: MotivoPelea | null;
   created_at: string;
   updated_at: string;
 }
@@ -348,4 +357,28 @@ export type EventoRegistroInsert = Pick<
   standby_seg?: number | null;
   miembro_id?: string | null;
   notas?: string | null;
+  se_pelea?: boolean;
+  se_pelea_motivo?: MotivoPelea | null;
+};
+
+// =====================================================
+// ASISTENCIAS (27/08/2026) — tabla `eventos_asistencias`
+// (SQL: camustore_miembros_v2.sql)
+// Quién se apunta a un registro concreto (una apertura / un respawn).
+// Una fila por (registro, email); apuntarse = insert, bajarse = delete.
+// =====================================================
+
+export interface AsistenciaRow {
+  id: string;
+  registro_id: string;
+  miembro_id: string | null;
+  email: string;
+  personaje: string;
+  raza: Raza | null;
+  created_at: string;
+}
+
+export type AsistenciaInsert = Pick<AsistenciaRow, "registro_id" | "email" | "personaje"> & {
+  miembro_id?: string | null;
+  raza?: Raza | null;
 };
