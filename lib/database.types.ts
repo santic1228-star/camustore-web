@@ -382,3 +382,35 @@ export type AsistenciaInsert = Pick<AsistenciaRow, "registro_id" | "email" | "pe
   miembro_id?: string | null;
   raza?: Raza | null;
 };
+
+// =====================================================
+// Timeline Tanda B (28/08/2026): eventos_config + calendario_asistencias
+// =====================================================
+
+/** Fila de `eventos_config` (append-only; la más nueva rige). */
+export interface EventosConfigRow {
+  id: string;
+  /** { evento_id: {tier?, visible?, regla?, duracionMin?, nota?} } */
+  valores: Record<string, unknown>;
+  nota: string | null;
+  creado_por_email: string;
+  created_at: string;
+}
+
+/** Fila de `calendario_asistencias`: apuntado a una ocurrencia puntual. */
+export interface CalAsistenciaRow {
+  id: string;
+  evento_id: string;
+  /** timestamptz ISO del inicio de la ocurrencia. */
+  inicio: string;
+  miembro_id: string | null;
+  email: string;
+  personaje: string;
+  raza: Raza | null;
+  created_at: string;
+}
+
+export type CalAsistenciaInsert = Pick<CalAsistenciaRow, "evento_id" | "inicio" | "email" | "personaje"> & {
+  miembro_id?: string | null;
+  raza?: Raza | null;
+};

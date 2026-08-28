@@ -262,3 +262,73 @@ export async function desapuntarse(registroId: string, email: string): Promise<v
     .eq("email", email.toLowerCase());
   if (error) throw new Error(`No se pudo bajar: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
 }
+
+// =====================================================
+// Asistencias del calendario: apuntarse a una ocurrencia puntual (28/08)
+// (distinto de eventos_asistencias, que apunta a registros de Gaion/bosses)
+// =====================================================
+
+import type { CalAsistenciaInsert, CalAsistenciaRow } from "./database.types";
+
+/** Clave de agrupado de una ocurrencia: evento + inicio exacto. */
+export function claveOcurrencia(eventoId: string, inicioMs: number): string {
+  return `${eventoId}@${inicioMs}`;
+}
+
+/**
+ * Asistencias de las ocurrencias entre dos instantes, agrupadas por
+ * claveOcurrencia (orden de llegada).
+ */
+export async function cargarAsistenciasCalendario(
+  desdeMs: number,
+  hastaMs: number,
+): Promise<Record<string, CalAsistenciaRow[]>> {
+  const out: Record<string, CalAsistenciaRow[]> = {};
+  const { data, error } = await supabase
+    .from("calendario_asistencias")
+    .select("*")
+    .gte("inicio", new Date(desdeMs).toISOString())
+    .lte("inicio", new Date(hastaMs).toISOString())
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  for (const a of (data ?? []) as CalAsistenciaRow[]) {
+    (out[claveOcurrencia(a.evento_id, Date.parse(a.inicio))] ??= []).push(a);
+  }
+  return out;
+}
+
+/** Me apunto a una ocurrencia. Si ya estaba, no duplica (unique evento+inicio+email). */
+export async function apuntarseCalendario(
+  eventoId: string,
+  inicioMs: number,
+  sesion: SesionMiembro,
+  raza: Raza | null,
+): Promise<void> {
+  const fila: CalAsistenciaInsert = {
+    evento_id: eventoId,
+    inicio: new Date(inicioMs).toISOString(),
+    email: sesion.email,
+    personaje: sesion.personaje,
+    miembro_id: sesion.miembro?.id ?? null,
+    raza,
+  };
+  const { error } = await supabase.from("calendario_asistencias").insert(fila);
+  if (error && error.code !== "23505") {
+    throw new Error(`No se pudo apuntar: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
+  }
+}
+
+/** Me bajo de una ocurrencia (o el admin baja a alguien). */
+export async function desapuntarseCalendario(
+  eventoId: string,
+  inicioMs: number,
+  email: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("calendario_asistencias")
+    .delete()
+    .eq("evento_id", eventoId)
+    .eq("inicio", new Date(inicioMs).toISOString())
+    .eq("email", email.toLowerCase());
+  if (error) throw new Error(`No se pudo bajar: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
+}

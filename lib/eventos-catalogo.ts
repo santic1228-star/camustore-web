@@ -26,7 +26,10 @@
  */
 
 export type TipoEvento = "boss" | "evento" | "invasion";
-export type Tier = "alto" | "medio" | "bajo";
+/** 3 = el más importante (así lo habla la guild), 1 = el menos. */
+export type Tier = 3 | 2 | 1;
+
+export const TIER_LABEL: Record<Tier, string> = { 3: "Tier 3", 2: "Tier 2", 1: "Tier 1" };
 
 export const DIAS_SEMANA = [
   "domingo",
@@ -63,8 +66,10 @@ export interface EventoCatalogo {
   id: string;
   nombre: string;
   tipo: TipoEvento;
-  /** Peso por defecto; el admin lo pisa en Tanda B (eventos_config). */
+  /** Peso por defecto; el admin lo pisa desde el tab Eventos. */
   tier: Tier;
+  /** ¿Tiene "Me apunto" en la timeline de miembros? Default: tier 3 y 2 sí. */
+  seApunta?: boolean;
   regla: ReglaHorario;
   mapa?: string;
   /** Números tipo "210,030" de la web del server. Parecen coordenadas (Q7). */
@@ -122,7 +127,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "erohim",
     nombre: "Erohim",
     tipo: "boss",
-    tier: "alto",
+    tier: 3,
     regla: planilla("09:00", "15:00", "21:00"),
     mapa: "Arena Común",
     drop: "Items s3 / 380 / 400",
@@ -131,7 +136,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "medusa",
     nombre: "Medusa",
     tipo: "boss",
-    tier: "alto",
+    tier: 3,
     regla: planilla("02:00", "11:00", "17:00", "23:00"),
     mapa: "Devias",
     drop: "Items s3 / 380 / 400",
@@ -140,7 +145,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "dark_sorcer",
     nombre: "Dark Sorcer",
     tipo: "boss",
-    tier: "medio",
+    tier: 2,
     regla: planilla("01:00", "13:00", "19:00"),
     mapa: "Arena VIP",
     requisito: "Ser VIP",
@@ -150,7 +155,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "hydra",
     nombre: "Hydra",
     tipo: "boss",
-    tier: "medio",
+    tier: 2,
     regla: planilla("00:00", "08:00", "12:00", "16:00", "20:00"),
     descripcion: "Son varias por spawn.",
     nota: "No hay a las 04:00.",
@@ -159,7 +164,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "ice_queen",
     nombre: "Ice Queen",
     tipo: "boss",
-    tier: "medio",
+    tier: 2,
     regla: {
       clase: "semanal",
       ocurrencias: [
@@ -178,7 +183,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "blood_castle",
     nombre: "Blood Castle",
     tipo: "evento",
-    tier: "medio",
+    tier: 2,
     regla: planilla("01:45", "05:45", "09:45", "13:45", "17:45", "21:45"),
     mapa: "Devias",
     coords: "210,030",
@@ -190,7 +195,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "devil_square",
     nombre: "Devil Square",
     tipo: "evento",
-    tier: "medio",
+    tier: 2,
     regla: cadaLista(true, 4, 30),
     mapa: "Noria",
     coords: "171,104",
@@ -202,7 +207,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "chaos_castle",
     nombre: "Chaos Castle",
     tipo: "evento",
-    tier: "medio",
+    tier: 2,
     regla: planilla("03:30", "07:30", "11:30", "15:30", "19:30", "23:30"),
     mapa: "Lorencia Bar",
     drop: "Joyas · Sphere",
@@ -213,7 +218,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "pandora",
     nombre: "Pandora",
     tipo: "evento",
-    tier: "medio",
+    tier: 2,
     regla: planilla("01:15", "11:15", "22:15"),
     mapa: "Coliseum",
     coords: "093,240",
@@ -225,7 +230,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "event_drop",
     nombre: "Event Drop",
     tipo: "evento",
-    tier: "bajo",
+    tier: 1,
     regla: cadaLista(true, 4, 45),
     mapa: "Lorencia",
     coords: "145,136",
@@ -236,7 +241,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "loteria",
     nombre: "Lotería Online",
     tipo: "evento",
-    tier: "bajo",
+    tier: 1,
     regla: cadaLista(false, 2, 45),
     mapa: "Lorencia",
     drop: "Joyas",
@@ -247,35 +252,35 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "illusion_temple",
     nombre: "Illusion Temple",
     tipo: "evento",
-    tier: "bajo",
+    tier: 1,
     regla: parcial("13:40", "21:40"),
   },
   {
     id: "pregunta_seria",
     nombre: "Pregunta Seria",
     tipo: "evento",
-    tier: "bajo",
+    tier: 1,
     regla: parcial("06:15", "15:15", "18:15"),
   },
   {
     id: "battle_royale",
     nombre: "Battle Royale",
     tipo: "evento",
-    tier: "bajo",
+    tier: 1,
     regla: planilla("02:45", "10:45", "14:45", "22:45"),
   },
   {
     id: "golden_ds",
     nombre: "Golden Devil Square",
     tipo: "evento",
-    tier: "bajo",
+    tier: 1,
     regla: cadaLista(false, 4, 35),
   },
   {
     id: "rey_del_mu",
     nombre: "Rey del Mu",
     tipo: "evento",
-    tier: "alto",
+    tier: 3,
     regla: {
       clase: "semanal",
       ocurrencias: [
@@ -292,7 +297,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "castle_siege",
     nombre: "Castle Siege",
     tipo: "evento",
-    tier: "alto",
+    tier: 3,
     regla: {
       clase: "semanal",
       ocurrencias: [{ dia: 0, horaSeg: h("21:00") }], // domingo
@@ -308,7 +313,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "red_dragon",
     nombre: "Red Dragon",
     tipo: "invasion",
-    tier: "medio",
+    tier: 2,
     regla: planilla("03:00", "05:00", "10:00", "14:00", "18:00", "22:00"),
     mapa: "Lorencia / Noria",
     drop: "Items s3 · Pendientes · Anillos · ACC",
@@ -318,7 +323,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "skeleton_king",
     nombre: "Skeleton King",
     tipo: "invasion",
-    tier: "bajo",
+    tier: 1,
     regla: planilla("02:30", "06:00", "08:30", "11:30", "14:30", "17:30", "20:30", "23:30"),
     mapa: "Lorencia / Noria / Devias",
     drop: "Anillos",
@@ -328,7 +333,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "white_wizard",
     nombre: "White Wizard",
     tipo: "invasion",
-    tier: "bajo",
+    tier: 1,
     regla: planilla("03:30", "07:00", "09:30", "12:30", "15:30", "18:30", "21:30"),
     mapa: "Lorencia / Noria / Devias",
     drop: "Pendientes",
@@ -340,7 +345,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "rabbits",
     nombre: "Lunar Rabbits",
     tipo: "invasion",
-    tier: "bajo",
+    tier: 1,
     regla: planilla("01:30", "08:15", "13:45", "17:15", "21:15", "23:45"),
     mapa: "Atlans",
     drop: "Joyas",
@@ -350,7 +355,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "pouch",
     nombre: "Pouch of Blessing",
     tipo: "invasion",
-    tier: "medio",
+    tier: 2,
     regla: planilla("00:45", "02:45", "09:15", "12:15", "15:45", "18:45"),
     mapa: "Losttower",
     drop: "Joyas · Silver Key · Golden Key",
@@ -360,7 +365,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "fire_sphere",
     nombre: "Fire Sphere",
     tipo: "invasion",
-    tier: "medio",
+    tier: 2,
     regla: planilla("01:45", "10:45", "14:45", "19:45", "22:45"),
     mapa: "Abyssal Maze",
     drop: "Sphere",
@@ -370,7 +375,7 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     id: "golden_invasion",
     nombre: "Golden Invasion",
     tipo: "invasion",
-    tier: "alto",
+    tier: 3,
     regla: planilla("00:30", "04:00", "10:30", "13:30", "16:30", "19:30", "22:30"),
     duracionMin: 52,
     nota: "Vista todavía activa ~51 min después de arrancar.",
@@ -384,6 +389,11 @@ export function eventoPorId(id: string): EventoCatalogo | null {
 /** true si al evento le pueden faltar horarios por relevar (marca "±"). */
 export function horariosParciales(ev: EventoCatalogo): boolean {
   return !ev.regla.listaCompleta;
+}
+
+/** ¿Se puede apuntar la guild a este evento? (override del admin o default por tier) */
+export function esApuntable(ev: EventoCatalogo): boolean {
+  return ev.seApunta ?? ev.tier >= 2;
 }
 
 export const TIPO_LABEL: Record<TipoEvento, string> = {

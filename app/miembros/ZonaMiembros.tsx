@@ -36,6 +36,7 @@ import {
   vibrar,
 } from "@/lib/avisos";
 import TarjetaEvento from "./TarjetaEvento";
+import TimelineMiembros from "./TimelineMiembros";
 
 // =====================================================
 // Zona de miembros: los tres timers compartidos + historial.
@@ -353,6 +354,22 @@ export default function ZonaMiembros({ sesion }: Props) {
             actualizar ahora
           </button>
         </p>
+
+        {/* ============ Timeline de las próximas 24 hs (Tanda B) ============ */}
+        <section className="mt-8 sm:mt-10 gamer-card rounded-lg p-5 sm:p-6">
+          <h2 className="font-display font-bold text-base mb-1 text-text-primary">
+            🗓 Timeline · próximas 24 hs
+          </h2>
+          <p className="font-body text-xs text-text-secondary mb-4">
+            El calendario completo con los datos de la guild intercalados. Tocá una fila para ver
+            quién va y apuntarte a ese horario puntual.
+          </p>
+          <TimelineMiembros
+            sesion={sesion}
+            miRaza={miRaza}
+            vigentes={datos?.vigentes ?? {}}
+          />
+        </section>
 
         {/* ============ Historial ============ */}
         <section className="mt-8 sm:mt-10 gamer-card rounded-lg p-5 sm:p-6">

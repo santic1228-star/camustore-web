@@ -10,6 +10,7 @@ import SeccionGemasStock from "./SeccionGemasStock";
 import SeccionJoyeriaStock from "./SeccionJoyeriaStock";
 import SeccionPrecios from "./SeccionPrecios";
 import SeccionAnalytics from "./SeccionAnalytics";
+import SeccionEventos from "./SeccionEventos";
 import SeccionMiembros from "./SeccionMiembros";
 import SeccionConsignaciones from "./SeccionConsignaciones";
 import { contarAbiertas } from "@/lib/consignaciones-admin";
@@ -36,6 +37,7 @@ function AdminShell({ user }: { user: User }) {
       {tab === "gemas" && <SeccionGemasStock />}
       {tab === "joyeria" && <SeccionJoyeriaStock />}
       {tab === "precios" && <SeccionPrecios user={user} />}
+      {tab === "eventos" && <SeccionEventos user={user} />}
       {tab === "analytics" && <SeccionAnalytics />}
       {tab === "miembros" && <SeccionMiembros />}
       {tab === "pendientes" && <SeccionConsignaciones onCambio={setAbiertas} />}

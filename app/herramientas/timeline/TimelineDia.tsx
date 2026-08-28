@@ -9,20 +9,12 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  DIAS_SEMANA,
-  horariosParciales,
-  TIPO_LABEL,
-  type TipoEvento,
-} from "@/lib/eventos-catalogo";
-import {
-  diaSemanaDe,
-  itinerario24h,
-  proximosSemanales,
-  type Ocurrencia,
-} from "@/lib/itinerario";
-import { fechaCortaServidor, hmsServidor, indiceDiaServidor } from "@/lib/registros";
-import { formatDuracion } from "@/lib/tiempo";
+import { DIAS_SEMANA, horariosParciales, type TipoEvento } from "@/lib/eventos-catalogo";
+import TimelineZig from "@/components/TimelineZig";
+import { itemsDeCalendario } from "@/lib/timeline-items";
+import { diaSemanaDe, itinerario24h, proximosSemanales } from "@/lib/itinerario";
+import { hmsServidor, indiceDiaServidor } from "@/lib/registros";
+import { aplicarConfig, cargarConfigEventos, type ValoresEventosConfig } from "@/lib/eventos-config";
 
 type Filtro = "todos" | TipoEvento;
 
@@ -37,15 +29,25 @@ export default function TimelineDia() {
   // null hasta montar: evita el mismatch de hidratación (mismo patrón que BossTimer).
   const [ahora, setAhora] = useState<number | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("todos");
+  // Overrides del admin (eventos_config). Si la BD falla, el catálogo en código alcanza.
+  const [valoresConfig, setValoresConfig] = useState<ValoresEventosConfig>({});
 
   useEffect(() => {
     setAhora(Date.now());
     const t = setInterval(() => setAhora(Date.now()), 1000);
+    cargarConfigEventos().then((c) => setValoresConfig(c.valores)).catch(() => {});
     return () => clearInterval(t);
   }, []);
 
-  const ocurrencias = useMemo(() => (ahora === null ? [] : itinerario24h(ahora)), [ahora]);
-  const semanales = useMemo(() => (ahora === null ? [] : proximosSemanales(ahora)), [ahora]);
+  const catalogo = useMemo(() => aplicarConfig(valoresConfig), [valoresConfig]);
+  const ocurrencias = useMemo(
+    () => (ahora === null ? [] : itinerario24h(ahora, catalogo)),
+    [ahora, catalogo],
+  );
+  const semanales = useMemo(
+    () => (ahora === null ? [] : proximosSemanales(ahora, catalogo)),
+    [ahora, catalogo],
+  );
 
   if (ahora === null) {
     return (
@@ -133,117 +135,8 @@ export default function TimelineDia() {
         </div>
       )}
 
-      {/* La timeline vertical */}
-      {visibles.length === 0 ? (
-        <div className="gamer-card rounded-lg p-6 text-center font-body text-sm text-text-secondary">
-          No hay nada de esta categoría en las próximas 24 hs.
-        </div>
-      ) : (
-        <ol className="relative border-l-2 border-border-base ml-2 sm:ml-3">
-          {visibles.map((o, i) => (
-            <ItemTimeline
-              key={`${o.evento.id}@${o.inicioMs}`}
-              o={o}
-              anterior={i > 0 ? visibles[i - 1] : null}
-            />
-          ))}
-        </ol>
-      )}
+      {/* La timeline zig-zag */}
+      <TimelineZig items={itemsDeCalendario(visibles)} ahora={ahora} />
     </div>
-  );
-}
-
-// =====================================================
-// Separador de día + un ítem
-// =====================================================
-
-function grupoDe(o: Ocurrencia): string {
-  return o.enCurso ? "en-curso" : `dia-${o.diasExtra}`;
-}
-
-function SeparadorDia({ o }: { o: Ocurrencia }) {
-  const texto = o.enCurso
-    ? "En curso"
-    : `${o.diasExtra === 0 ? "Hoy" : "Mañana"} · ${
-        DIAS_SEMANA[diaSemanaDe(indiceDiaServidor(o.inicioMs))]
-      } ${fechaCortaServidor(o.inicioMs)}`;
-  return (
-    <li className="ml-4 sm:ml-5 pt-1 pb-2 first:pt-0">
-      <p
-        className={`font-body text-[10px] uppercase tracking-[0.3em] ${
-          o.enCurso ? "text-success-green" : "text-text-muted"
-        }`}
-      >
-        {texto}
-      </p>
-    </li>
-  );
-}
-
-const PIN: Record<string, string> = {
-  alto: "w-4 h-4 -left-[9px] bg-luck-gold shadow-[0_0_10px_rgba(255,215,0,0.5)]",
-  medio: "w-3 h-3 -left-[7px] bg-neon-cyan",
-  bajo: "w-2 h-2 -left-[5px] bg-text-muted",
-};
-
-function ItemTimeline({ o, anterior }: { o: Ocurrencia; anterior: Ocurrencia | null }) {
-  const ev = o.evento;
-  const esAlto = ev.tier === "alto";
-  const esBajo = ev.tier === "bajo";
-  const cambiaGrupo = !anterior || grupoDe(anterior) !== grupoDe(o);
-
-  return (
-    <>
-      {cambiaGrupo && <SeparadorDia o={o} />}
-      <li className={`relative ml-4 sm:ml-5 ${esBajo ? "pb-3" : "pb-4 sm:pb-5"}`}>
-        <span
-          className={`absolute top-1.5 rounded-full ${PIN[ev.tier]} ${
-            o.enCurso ? "animate-pulse" : ""
-          }`}
-        />
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className={`font-body text-text-primary ${
-                esAlto ? "text-base sm:text-lg font-bold" : esBajo ? "text-sm" : "text-sm sm:text-base font-bold"
-              }`}
-            >
-              <span className={`font-numeric mr-2 ${esAlto ? "text-luck-gold" : "text-neon-cyan"}`}>
-                {o.hm}
-              </span>
-              {ev.nombre}
-              {horariosParciales(ev) && (
-                <span
-                  className="text-luck-gold ml-1.5"
-                  title="Horarios relevados a medias: puede haber más"
-                >
-                  ±
-                </span>
-              )}
-              <span className="font-body text-[10px] uppercase tracking-wider text-text-muted ml-2">
-                {TIPO_LABEL[ev.tipo]}
-              </span>
-            </p>
-            {!esBajo && (ev.mapa || ev.drop) && (
-              <p className="font-body text-xs text-text-secondary mt-0.5 truncate">
-                {[ev.mapa, ev.drop].filter(Boolean).join(" · ")}
-              </p>
-            )}
-            {esAlto && ev.nota && (
-              <p className="font-body text-[11px] text-text-muted mt-0.5">{ev.nota}</p>
-            )}
-          </div>
-          <p className="font-body text-xs whitespace-nowrap shrink-0">
-            {o.enCurso ? (
-              <span className="text-success-green font-bold">EN CURSO</span>
-            ) : (
-              <span className="text-text-secondary">
-                en <span className="text-text-primary">{formatDuracion(o.faltanSeg)}</span>
-              </span>
-            )}
-          </p>
-        </div>
-      </li>
-    </>
   );
 }
