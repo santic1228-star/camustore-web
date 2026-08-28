@@ -38,18 +38,14 @@ export const HERRAMIENTAS: Herramienta[] = [
     estado: "activa",
   },
   {
-    slug: "invasiones",
-    icono: "🐉",
-    titulo: "Invasiones",
-    texto: "Red Dragon, Skeleton King, White Wizard, Rabbits, Pouch of Blessing, Fire Sphere.",
-    estado: "pronto",
-  },
-  {
-    slug: "eventos",
-    icono: "🏰",
-    titulo: "Eventos",
-    texto: "Blood Castle, Devil Square, Chaos Castle, Pandora, Event Drop, Lotería.",
-    estado: "pronto",
+    slug: "timeline",
+    href: "/herramientas/timeline",
+    icono: "🗓",
+    titulo: "Timeline de eventos",
+    tituloCorto: "Timeline",
+    texto:
+      "Las próximas 24 hs del server: eventos, invasiones y bosses con horario, mapa y drop, en hora servidor.",
+    estado: "activa",
   },
 ];
 
