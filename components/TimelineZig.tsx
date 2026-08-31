@@ -107,6 +107,10 @@ function grupoDe(it: ItemTimeline): string {
   return enCursoDe(it) ? "en-curso" : `dia-${diasExtraDe(it)}`;
 }
 
+const LABEL_GRUPO: Record<string, string> = {
+  "en-curso": "En curso",
+};
+
 const DOT: Record<number | string, string> = {
   3: "w-4 h-4 bg-luck-gold shadow-[0_0_10px_rgba(255,215,0,0.5)]",
   2: "w-3 h-3 bg-neon-cyan",
@@ -154,11 +158,10 @@ function Fila({
               grupoDe(it) === "en-curso" ? "text-success-green" : "text-text-muted"
             }`}
           >
-            {grupoDe(it) === "en-curso"
-              ? "En curso"
-              : `${diasExtraDe(it) === 0 ? "Hoy" : "Mañana"} · ${
-                  DIAS_SEMANA[diaSemanaDe(indiceDiaServidor(inicioMs))]
-                } ${fechaCortaServidor(inicioMs)}`}
+            {LABEL_GRUPO[grupoDe(it)] ??
+              `${diasExtraDe(it) === 0 ? "Hoy" : "Mañana"} · ${
+                DIAS_SEMANA[diaSemanaDe(indiceDiaServidor(inicioMs))]
+              } ${fechaCortaServidor(inicioMs)}`}
           </span>
         </li>
       )}
@@ -262,7 +265,7 @@ function CuerpoTarjeta({
       <p className="font-body text-[9px] uppercase tracking-wider text-text-muted mt-0.5">
         {TIER_LABEL[ev.tier]} · {TIPO_LABEL[ev.tipo]}
       </p>
-      <Countdown enCurso={oc.enCurso} faltanSeg={oc.faltanSeg} />
+      <Countdown enCurso={oc.enCurso} faltanSeg={oc.faltanSeg} terminaEnSeg={oc.terminaEnSeg} />
 
       {/* avatares compactos sin enfocar */}
       {!enfocada && apuntados.length > 0 && (
@@ -331,11 +334,31 @@ function CuerpoTarjeta({
   );
 }
 
-function Countdown({ enCurso, faltanSeg }: { enCurso: boolean; faltanSeg: number }) {
+function Countdown({
+  enCurso,
+  faltanSeg,
+  terminaEnSeg,
+}: {
+  enCurso: boolean;
+  faltanSeg: number;
+  terminaEnSeg?: number;
+}) {
   return (
     <p className="font-body text-[11px] mt-0.5">
       {enCurso ? (
-        <span className="text-success-green font-bold">EN CURSO</span>
+        <span className="text-success-green font-bold">
+          EN CURSO
+          {terminaEnSeg !== undefined && terminaEnSeg > 0 && (
+            <span className="font-normal text-success-green/80">
+              {" "}· quedan <span className="font-numeric">{formatDuracion(terminaEnSeg)}</span>
+            </span>
+          )}
+        </span>
+      ) : faltanSeg < 5 * 60 ? (
+        // como la ventana del juego: lo inminente (<5 min) se pinta verde
+        <span className="text-success-green font-bold">
+          en <span className="font-numeric">{formatDuracion(faltanSeg)}</span>
+        </span>
       ) : (
         <span className="text-text-secondary">
           en <span className="text-text-primary font-numeric">{formatDuracion(faltanSeg)}</span>

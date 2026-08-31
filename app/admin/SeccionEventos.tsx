@@ -420,7 +420,7 @@ function FormEvento({
       {/* Duración + nota */}
       <div className="flex flex-wrap items-center gap-3">
         <label className="inline-flex items-center gap-2 font-body text-xs text-text-secondary">
-          Dura (min):
+          Dura (min, vacío = 20):
           <input
             type="number"
             min={0}
@@ -431,7 +431,7 @@ function FormEvento({
                 duracionMin: v === (base.duracionMin ?? null) ? undefined : v,
               });
             }}
-            placeholder="—"
+            placeholder="20"
             className="w-16 bg-bg-deep border border-border-base rounded px-2 py-1.5 font-numeric text-xs text-text-primary"
           />
         </label>

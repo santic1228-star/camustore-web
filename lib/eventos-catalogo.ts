@@ -31,6 +31,15 @@ export type Tier = 3 | 2 | 1;
 
 export const TIER_LABEL: Record<Tier, string> = { 3: "Tier 3", 2: "Tier 2", 1: "Tier 1" };
 
+/** Santi (29/08): "todo tiene una duración de 20 min". Es el default;
+ *  `duracionMin` en el evento (o desde el admin) lo pisa para las excepciones
+ *  conocidas: Golden Invasion ~52 · White Wizard ~22 · Castle Siege y Rey del Mu 60. */
+export const DURACION_DEFAULT_MIN = 20;
+
+export function duracionMinDe(ev: EventoCatalogo): number {
+  return ev.duracionMin ?? DURACION_DEFAULT_MIN;
+}
+
 export const DIAS_SEMANA = [
   "domingo",
   "lunes",
@@ -77,7 +86,7 @@ export interface EventoCatalogo {
   requisito?: string;
   drop?: string;
   descripcion?: string;
-  /** Minutos que dura, cuando se conoce (Q16). Habilita el estado "EN CURSO". */
+  /** Minutos que dura SI difiere del default de 20 (DURACION_DEFAULT_MIN). */
   duracionMin?: number;
   /** Aclaración visible en la tarjeta (horarios sin confirmar, dudas abiertas). */
   nota?: string;
@@ -168,14 +177,16 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     regla: {
       clase: "semanal",
       ocurrencias: [
+        { dia: 1, horaSeg: h("10:30") }, // lunes (captura 30/08: 19:49:11 desde dom 14:40)
         { dia: 3, horaSeg: h("23:30") }, // miércoles
         { dia: 5, horaSeg: h("18:30") }, // viernes
+        { dia: 6, horaSeg: h("23:30") }, // sábado (capturas 29/08)
       ],
       listaCompleta: false,
     },
     mapa: "Lacleon",
     drop: "Tricolor · Ring Wheel",
-    nota: "Calendario semanal incompleto: puede haber más días.",
+    nota: "Martes y jueves sin relevar; domingo no tiene.",
   },
 
   // ---------- Eventos (§3) ----------
@@ -260,7 +271,8 @@ export const EVENTOS_CATALOGO: EventoCatalogo[] = [
     nombre: "Pregunta Seria",
     tipo: "evento",
     tier: 1,
-    regla: parcial("06:15", "15:15", "18:15"),
+    regla: parcial("00:15", "06:15", "15:15", "18:15", "21:15"),
+    nota: "Compatible con «cada 3 hs a las :15»; faltan ver 03:15, 09:15 y 12:15.",
   },
   {
     id: "battle_royale",

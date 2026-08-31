@@ -13,6 +13,7 @@
 import { DIA_MS, etiquetaDia, formatHMS } from "./tiempo";
 import { indiceDiaServidor, OFFSET_SERVIDOR_MS } from "./registros";
 import {
+  duracionMinDe,
   EVENTOS_CATALOGO,
   type EventoCatalogo,
 } from "./eventos-catalogo";
@@ -33,8 +34,11 @@ export interface Ocurrencia {
   diasExtra: number;
   /** "hoy" / "mañana" / "en N días" — o "en curso". */
   etiqueta: string;
-  /** true si `ahora` cae dentro de la duración conocida del evento. */
+  /** true si `ahora` cae dentro de la duración del evento (default 20 min,
+   *  dato de Santi 29/08; excepciones en el catálogo o vía admin). */
   enCurso: boolean;
+  /** Segundos hasta que termina (solo tiene sentido si enCurso). */
+  terminaEnSeg: number;
   /** Segundos hasta el inicio (negativo si ya arrancó y sigue en curso). */
   faltanSeg: number;
 }
@@ -68,7 +72,7 @@ function armarOcurrencia(
   diasExtra: number,
   ahoraMs: number,
 ): Ocurrencia {
-  const durMs = (ev.duracionMin ?? 0) * 60_000;
+  const durMs = duracionMinDe(ev) * 60_000;
   const enCurso = inicioMs <= ahoraMs && ahoraMs < inicioMs + durMs;
   return {
     evento: ev,
@@ -78,6 +82,7 @@ function armarOcurrencia(
     diasExtra,
     etiqueta: enCurso ? "en curso" : etiquetaDia(diasExtra),
     enCurso,
+    terminaEnSeg: Math.round((inicioMs + durMs - ahoraMs) / 1000),
     faltanSeg: Math.round((inicioMs - ahoraMs) / 1000),
   };
 }
