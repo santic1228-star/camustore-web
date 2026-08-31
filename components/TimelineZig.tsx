@@ -148,6 +148,8 @@ function Fila({
   const inicioMs = inicioDe(it);
   const cambiaGrupo = !anterior || grupoDe(anterior) !== grupoDe(it);
   const tier3 = it.clase === "calendario" && it.oc.evento.tier === 3;
+  /** Los verdes (guild) son los más importantes: contorno y glow siempre (31/08). */
+  const privado = it.clase === "privado";
 
   return (
     <>
@@ -192,11 +194,15 @@ function Fila({
             enfocada
               ? tier3
                 ? "tarjeta-tier3-foco border-luck-gold/70 bg-bg-deep"
-                : "scale-[1.03] border-neon-cyan/60 bg-bg-deep shadow-[0_0_14px_rgba(0,229,255,0.12)]"
-              : hayOtroFoco
-                ? "scale-[0.97] opacity-75 border-border-base bg-bg-deep/60"
-                : "border-border-base bg-bg-deep/60"
-          } ${it.clase === "privado" && enfocada ? "border-success-green/60" : ""} p-2.5 sm:p-3`}
+                : privado
+                  ? "scale-[1.03] border-success-green/80 bg-bg-deep shadow-[0_0_18px_rgba(80,250,123,0.3)]"
+                  : "scale-[1.03] border-neon-cyan/60 bg-bg-deep shadow-[0_0_14px_rgba(0,229,255,0.12)]"
+              : privado
+                ? "border-success-green/50 bg-success-green/[0.05] shadow-[0_0_12px_rgba(80,250,123,0.18)]"
+                : hayOtroFoco
+                  ? "scale-[0.97] opacity-75 border-border-base bg-bg-deep/60"
+                  : "border-border-base bg-bg-deep/60"
+          } p-2.5 sm:p-3`}
         >
           <CuerpoTarjeta
             it={it}
@@ -237,11 +243,10 @@ function CuerpoTarjeta({
           </span>
         </p>
         <Countdown enCurso={false} faltanSeg={Math.round((it.inicioMs - Date.now()) / 1000)} />
-        {enfocada && (
-          <p className="font-body text-[11px] text-text-secondary mt-1">
-            {it.texto} · dato nuestro, no está en la timeline pública.
-          </p>
-        )}
+        {/* Desplegado por defecto (31/08): el detalle se ve siempre, sin necesitar foco. */}
+        <p className="font-body text-[11px] text-text-secondary mt-1">
+          {it.texto} · dato nuestro, no está en la timeline pública.
+        </p>
       </>
     );
   }
