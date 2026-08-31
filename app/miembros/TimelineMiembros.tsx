@@ -5,7 +5,9 @@
  *   - el calendario efectivo (catálogo + overrides del admin),
  *   - los PRIVADOS intercalados (Gaion / Kundun / Cryonox),
  *   - "Me apunto" por ocurrencia puntual en los eventos apuntables
- *     (Tier 3 y 2 por default; editable por evento desde el admin).
+ *     (Tier 3 y 2 por default; editable por evento desde el admin),
+ *   - "Me apunto" también en los PRIVADOS (31/08): va a `eventos_asistencias`
+ *     por registro vigente, la MISMA lista que muestra la tarjeta de carga.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -19,22 +21,41 @@ import {
   type ItemTimeline,
 } from "@/lib/timeline-items";
 import {
+  apuntarse,
   apuntarseCalendario,
   cargarAsistenciasCalendario,
+  desapuntarse,
   desapuntarseCalendario,
   type SesionMiembro,
 } from "@/lib/miembros";
 import { indiceDiaServidor } from "@/lib/registros";
-import type { CalAsistenciaRow, EventoRegistroRow, Raza, TipoEventoRegistro } from "@/lib/database.types";
+import type {
+  AsistenciaRow,
+  CalAsistenciaRow,
+  EventoRegistroRow,
+  Raza,
+  TipoEventoRegistro,
+} from "@/lib/database.types";
+import type { ApuntadoTimeline } from "@/components/TimelineZig";
 
 interface Props {
   sesion: SesionMiembro;
   miRaza: Raza | null;
   /** Registros vigentes por tipo (los carga ZonaMiembros). */
   vigentes: Partial<Record<TipoEventoRegistro, EventoRegistroRow>>;
+  /** Apuntados de los registros privados por registro_id (los carga ZonaMiembros). */
+  asistenciasRegistros?: Record<string, AsistenciaRow[]>;
+  /** Avisar a ZonaMiembros que cambió una asistencia privada (recarga). */
+  onCambioAsistencia?: () => void;
 }
 
-export default function TimelineMiembros({ sesion, miRaza, vigentes }: Props) {
+export default function TimelineMiembros({
+  sesion,
+  miRaza,
+  vigentes,
+  asistenciasRegistros = {},
+  onCambioAsistencia,
+}: Props) {
   const [ahora, setAhora] = useState<number | null>(null);
   const [valoresConfig, setValoresConfig] = useState<ValoresEventosConfig>({});
   const [asis, setAsis] = useState<Record<string, CalAsistenciaRow[]>>({});
@@ -72,6 +93,17 @@ export default function TimelineMiembros({ sesion, miRaza, vigentes }: Props) {
     return intercalarPrivados(itemsDeCalendario(itinerario24h(ahora, catalogo)), vigentes, ahora);
   }, [ahora, catalogo, vigentes]);
 
+  /** Apuntados por clave: ocurrencias del calendario + privados (`priv-<tipo>` → registro vigente). */
+  const apuntadosPorClave = useMemo<Record<string, ApuntadoTimeline[]>>(() => {
+    const out: Record<string, ApuntadoTimeline[]> = { ...asis };
+    for (const it of items) {
+      if (it.clase !== "privado") continue;
+      const reg = vigentes[it.tipo];
+      if (reg) out[it.clave] = asistenciasRegistros[reg.id] ?? [];
+    }
+    return out;
+  }, [asis, items, vigentes, asistenciasRegistros]);
+
   const semanales = useMemo(
     () => (ahora === null ? [] : proximosSemanales(ahora, catalogo)),
     [ahora, catalogo],
@@ -81,13 +113,22 @@ export default function TimelineMiembros({ sesion, miRaza, vigentes }: Props) {
     return <p className="font-body text-sm text-text-secondary">Cargando la timeline…</p>;
   }
 
-  async function toggleVoy(it: Extract<ItemTimeline, { clase: "calendario" }>) {
-    const yoVoy = (asis[it.clave] ?? []).some((a) => a.email === sesion.email);
+  async function toggleVoy(it: ItemTimeline) {
+    const yoVoy = (apuntadosPorClave[it.clave] ?? []).some((a) => a.email === sesion.email);
     setCambiando(it.clave);
     try {
-      if (yoVoy) await desapuntarseCalendario(it.oc.evento.id, it.oc.inicioMs, sesion.email);
-      else await apuntarseCalendario(it.oc.evento.id, it.oc.inicioMs, sesion, miRaza);
-      await refrescarAsis(ahora!);
+      if (it.clase === "privado") {
+        // Misma tabla que la tarjeta de carga: apuntarse acá = apuntarse allá.
+        const reg = vigentes[it.tipo];
+        if (!reg) throw new Error("No hay registro vigente para apuntarse.");
+        if (yoVoy) await desapuntarse(reg.id, sesion.email);
+        else await apuntarse(reg.id, sesion, miRaza);
+        onCambioAsistencia?.();
+      } else {
+        if (yoVoy) await desapuntarseCalendario(it.oc.evento.id, it.oc.inicioMs, sesion.email);
+        else await apuntarseCalendario(it.oc.evento.id, it.oc.inicioMs, sesion, miRaza);
+        await refrescarAsis(ahora!);
+      }
     } catch (e) {
       setErrorAsis(e instanceof Error ? e.message : "No se pudo.");
     } finally {
@@ -119,7 +160,7 @@ export default function TimelineMiembros({ sesion, miRaza, vigentes }: Props) {
       <TimelineZig
         items={items}
         ahora={ahora}
-        apuntados={asis}
+        apuntados={apuntadosPorClave}
         yo={sesion.email}
         onVoy={toggleVoy}
         cambiando={cambiando}

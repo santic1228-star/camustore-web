@@ -36,17 +36,24 @@ import {
 } from "@/lib/timeline-items";
 import { fechaCortaServidor, indiceDiaServidor } from "@/lib/registros";
 import { formatDuracion } from "@/lib/tiempo";
-import type { CalAsistenciaRow } from "@/lib/database.types";
+import type { AsistenciaRow, CalAsistenciaRow } from "@/lib/database.types";
+
+/**
+ * Lo que la timeline necesita de un apuntado. Lo cumplen tanto las filas del
+ * calendario (`calendario_asistencias`) como las de los registros privados
+ * (`eventos_asistencias`): así los verdes también tienen "Me apunto" (31/08).
+ */
+export type ApuntadoTimeline = Pick<CalAsistenciaRow | AsistenciaRow, "id" | "email" | "personaje" | "raza">;
 
 interface Props {
   items: ItemTimeline[];
   ahora: number;
-  /** Solo miembros: apuntados por clave de ocurrencia. */
-  apuntados?: Record<string, CalAsistenciaRow[]>;
+  /** Solo miembros: apuntados por clave del ítem (ocurrencia o `priv-<tipo>`). */
+  apuntados?: Record<string, ApuntadoTimeline[]>;
   /** Solo miembros: email propio (pinta tu nombre en cyan). */
   yo?: string;
-  /** Solo miembros: apuntarse/bajarse de una ocurrencia de calendario. */
-  onVoy?: (it: Extract<ItemTimeline, { clase: "calendario" }>) => void;
+  /** Solo miembros: apuntarse/bajarse de un ítem (ocurrencia de calendario o privado). */
+  onVoy?: (it: ItemTimeline) => void;
   /** Clave con el guardado en curso (deshabilita ese botón). */
   cambiando?: string | null;
 }
@@ -92,7 +99,7 @@ export default function TimelineZig({ items, ahora, apuntados, yo, onVoy, cambia
           cambiando={cambiando === it.clave}
           onTap={() => setFocoTap(focoTap === it.clave ? null : it.clave)}
           onHover={(dentro) => setFocoHover(dentro ? it.clave : null)}
-          onVoy={onVoy && it.clase === "calendario" ? () => onVoy(it) : undefined}
+          onVoy={onVoy ? () => onVoy(it) : undefined}
         />
       ))}
     </ol>
@@ -138,7 +145,7 @@ function Fila({
   anterior: ItemTimeline | null;
   enfocada: boolean;
   hayOtroFoco: boolean;
-  apuntados: CalAsistenciaRow[];
+  apuntados: ApuntadoTimeline[];
   yo?: string;
   cambiando: boolean;
   onTap: () => void;
@@ -228,7 +235,7 @@ function CuerpoTarjeta({
 }: {
   it: ItemTimeline;
   enfocada: boolean;
-  apuntados: CalAsistenciaRow[];
+  apuntados: ApuntadoTimeline[];
   yo?: string;
   cambiando: boolean;
   onVoy?: () => void;
@@ -243,18 +250,20 @@ function CuerpoTarjeta({
           </span>
         </p>
         <Countdown enCurso={false} faltanSeg={Math.round((it.inicioMs - Date.now()) / 1000)} />
-        {/* Desplegado por defecto (31/08): el detalle se ve siempre, sin necesitar foco. */}
+        {/* Desplegado por defecto (31/08): detalle, apuntados y Me apunto se ven siempre. */}
         <p className="font-body text-[11px] text-text-secondary mt-1">
-          {it.texto} · dato nuestro, no está en la timeline pública.
+          {it.texto} <span className="font-numeric text-text-primary">{it.hm}</span> · dato nuestro, no
+          está en la timeline pública.
         </p>
+        {yo !== undefined && (
+          <BloqueApuntados apuntados={apuntados} yo={yo} cambiando={cambiando} onVoy={onVoy} />
+        )}
       </>
     );
   }
 
   const { oc } = it;
   const ev = oc.evento;
-  const yoVoy = yo !== undefined && apuntados.some((a) => a.email === yo);
-
   return (
     <>
       <p
@@ -295,45 +304,63 @@ function CuerpoTarjeta({
 
           {/* apuntados con nombre (solo miembros) */}
           {yo !== undefined && esApuntable(ev) && (
-            <>
-              {apuntados.length > 0 && (
-                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5">
-                  {apuntados.map((a) => (
-                    <span
-                      key={a.id}
-                      className={`inline-flex items-center gap-1 font-body text-xs ${
-                        a.email === yo ? "text-neon-cyan" : "text-text-primary"
-                      }`}
-                    >
-                      <AvatarRaza raza={a.raza} size={16} />
-                      {a.personaje}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {onVoy && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation(); // que el botón no cambie el foco
-                    onVoy();
-                  }}
-                  disabled={cambiando}
-                  className={`mt-2 px-3 py-1 rounded font-body text-[10px] uppercase tracking-widest border transition-colors disabled:opacity-50 ${
-                    yoVoy
-                      ? "bg-success-green/15 text-success-green border-success-green/50 hover:bg-danger-red/10 hover:text-danger-red hover:border-danger-red/50"
-                      : "border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan/10"
-                  }`}
-                >
-                  {cambiando ? "…" : yoVoy ? "✓ Voy" : "Me apunto"}
-                </button>
-              )}
-            </>
+            <BloqueApuntados apuntados={apuntados} yo={yo} cambiando={cambiando} onVoy={onVoy} />
           )}
           {yo !== undefined && !esApuntable(ev) && (
             <p className="font-body text-[10px] text-text-muted mt-1.5">No se apunta.</p>
           )}
         </div>
+      )}
+    </>
+  );
+}
+
+/** Apuntados con nombre + botón Me apunto / ✓ Voy. Compartido por calendario y privados. */
+function BloqueApuntados({
+  apuntados,
+  yo,
+  cambiando,
+  onVoy,
+}: {
+  apuntados: ApuntadoTimeline[];
+  yo: string;
+  cambiando: boolean;
+  onVoy?: () => void;
+}) {
+  const yoVoy = apuntados.some((a) => a.email === yo);
+  return (
+    <>
+      {apuntados.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5">
+          {apuntados.map((a) => (
+            <span
+              key={a.id}
+              className={`inline-flex items-center gap-1 font-body text-xs ${
+                a.email === yo ? "text-neon-cyan" : "text-text-primary"
+              }`}
+            >
+              <AvatarRaza raza={a.raza} size={16} />
+              {a.personaje}
+            </span>
+          ))}
+        </div>
+      )}
+      {onVoy && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation(); // que el botón no cambie el foco
+            onVoy();
+          }}
+          disabled={cambiando}
+          className={`mt-2 px-3 py-1 rounded font-body text-[10px] uppercase tracking-widest border transition-colors disabled:opacity-50 ${
+            yoVoy
+              ? "bg-success-green/15 text-success-green border-success-green/50 hover:bg-danger-red/10 hover:text-danger-red hover:border-danger-red/50"
+              : "border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan/10"
+          }`}
+        >
+          {cambiando ? "…" : yoVoy ? "✓ Voy" : "Me apunto"}
+        </button>
       )}
     </>
   );

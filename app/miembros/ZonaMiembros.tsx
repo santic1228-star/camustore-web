@@ -384,6 +384,8 @@ export default function ZonaMiembros({ sesion }: Props) {
             sesion={sesion}
             miRaza={miRaza}
             vigentes={datos?.vigentes ?? {}}
+            asistenciasRegistros={asistencias}
+            onCambioAsistencia={recargar}
           />
         </section>
 
