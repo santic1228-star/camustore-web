@@ -65,6 +65,14 @@ export default function ZonaMiembros({ sesion }: Props) {
   const [errorRaza, setErrorRaza] = useState<string | null>(null);
   const [avisosOn, setAvisosOn] = useState(false);
   const [permisoNotif, setPermisoNotif] = useState<string>("default");
+  /**
+   * Colapsable "Eventos de horario no público" (reorden 31/08, DECISIONES §13).
+   * null = automático (abierto solo si hay un aviso activo); true/false = el
+   * usuario lo tocó a mano y eso manda por el resto de la sesión.
+   */
+  const [noPublicoManual, setNoPublicoManual] = useState<boolean | null>(null);
+  /** Colapsable "Tu avatar" (al final de la página). Arranca plegado. */
+  const [avatarAbierto, setAvatarAbierto] = useState(false);
   /** Umbrales ya disparados en esta sesión: "tipo:resultadoMs:umbral". */
   const disparadosRef = useRef<Set<string>>(new Set());
   const tituloOriginalRef = useRef<string | null>(null);
@@ -209,6 +217,36 @@ export default function ZonaMiembros({ sesion }: Props) {
     }
   }
 
+  // ============ Reorden 31/08 (DECISIONES §13): estado del colapsable ============
+  // "Por vencer" = mismo criterio que los avisos: algo a ≤15 min o recién
+  // abierto/respawneado (≤5 min). Mientras no haya toque manual, el colapsable
+  // sigue esta regla en vivo (se abre solo cuando un aviso se activa).
+  let hayAvisoActivo = false;
+  /** Piezas del resumen del título plegado: solo lo que vence en <1 h. */
+  const resumenPlegado: string[] = [];
+  if (ahora !== null && datos) {
+    for (const config of EVENTOS) {
+      const registro = datos.vigentes[config.tipo];
+      if (!registro) continue;
+      const { estado, desconocido } = vistaDeRegistro(config, registro, ahora);
+      if (desconocido) continue;
+      if (estado.listo) {
+        if (-estado.faltaSeg <= 300) {
+          hayAvisoActivo = true;
+          resumenPlegado.push(`${config.icono} ¡${config.nombre} ahora!`);
+        }
+      } else {
+        if (estado.aviso !== null) hayAvisoActivo = true;
+        if (estado.faltaSeg < 3600) {
+          resumenPlegado.push(
+            `${config.icono} ${config.nombre} en ${Math.max(1, Math.ceil(estado.faltaSeg / 60))} min`
+          );
+        }
+      }
+    }
+  }
+  const noPublicoAbierto = noPublicoManual ?? hayAvisoActivo;
+
   async function borrar(id: string) {
     if (!confirm("¿Borrar este registro? Solo el admin puede hacerlo.")) return;
     try {
@@ -287,48 +325,33 @@ export default function ZonaMiembros({ sesion }: Props) {
           </button>
         </div>
 
-        {/* ============ Tu avatar (27/08) ============ */}
-        <div className="mb-4 sm:mb-6 rounded-lg border border-border-base bg-bg-card/50 p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0">
-              <AvatarRaza raza={miRaza} size={36} />
-              <div className="min-w-0">
-                <p className="font-body text-sm text-text-primary">
-                  <span className="font-bold">{sesion.personaje}</span>
-                  <span className="text-text-muted"> · {miRaza ? RAZA_AVATAR_LABEL[miRaza] : "sin avatar"}</span>
-                </p>
-                <p className="font-body text-[11px] text-text-muted mt-0.5">
-                  {sesion.miembro
-                    ? "Elegí tu raza: es el ícono que ven los demás cuando te apuntás a un evento."
-                    : "Sos admin sin fila de miembro: agregate desde /admin → Miembros para elegir avatar."}
-                </p>
-              </div>
-            </div>
-            {sesion.miembro && (
-              <div className="flex flex-wrap gap-1.5">
-                {RAZAS_AVATAR.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => elegirRaza(r)}
-                    disabled={guardandoRaza}
-                    title={RAZA_AVATAR_LABEL[r]}
-                    className={`rounded-full p-0.5 transition-all disabled:opacity-50 ${
-                      miRaza === r ? "ring-2 ring-neon-cyan scale-110" : "opacity-70 hover:opacity-100"
-                    }`}
-                  >
-                    <AvatarRaza raza={r} size={30} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {errorRaza && <p className="font-body text-xs text-danger-red mt-2">{errorRaza}</p>}
-        </div>
-
-        {/* ============ Las tres tarjetas ============ */}
-        <div className="space-y-4 sm:space-y-6">
-          {EVENTOS.map((config) => (
+        {/* ============ Eventos de horario no público (reorden 31/08, §13) ============ */}
+        <section className="gamer-card rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setNoPublicoManual(!noPublicoAbierto)}
+            aria-expanded={noPublicoAbierto}
+            className="w-full text-left p-4 sm:p-5 hover:bg-bg-card/60 transition-colors"
+          >
+            <span className="flex items-center justify-between gap-3">
+              <span className="font-display font-bold text-base text-text-primary">
+                🕐 Eventos de horario no público
+              </span>
+              <span className="shrink-0 text-text-muted" aria-hidden>
+                {noPublicoAbierto ? "▾" : "▸"}
+              </span>
+            </span>
+            <span className="block font-body text-[11px] text-text-muted mt-0.5">
+              {noPublicoAbierto
+                ? "Gaion, Kundun y Cryonox: acá se cargan los registros. En la timeline se ven intercalados."
+                : resumenPlegado.length > 0
+                  ? <span className="text-luck-gold">{resumenPlegado.join(" · ")}</span>
+                  : "Gaion, Kundun y Cryonox · nada por vencer en la próxima hora"}
+            </span>
+          </button>
+          {noPublicoAbierto && (
+            <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-4 sm:space-y-6">
+              {EVENTOS.map((config) => (
             <TarjetaEvento
               key={config.tipo}
               config={config}
@@ -340,22 +363,15 @@ export default function ZonaMiembros({ sesion }: Props) {
                 return r ? asistencias[r.id] ?? [] : [];
               })()}
               miRaza={miRaza}
-              onGuardado={recargar}
-              onCambioAsistencia={recargar}
-            />
-          ))}
-        </div>
+                  onGuardado={recargar}
+                  onCambioAsistencia={recargar}
+                />
+              ))}
+            </div>
+          )}
+        </section>
 
-        <p className="font-body text-[11px] text-text-muted text-center mt-4">
-          Se actualiza solo cada 30 s
-          {ultimaCarga !== null && ahora !== null && <> · última actualización {textoHace(ultimaCarga, ahora)}</>}
-          {" "}·{" "}
-          <button onClick={recargar} className="underline hover:text-text-secondary">
-            actualizar ahora
-          </button>
-        </p>
-
-        {/* ============ Timeline de las próximas 24 hs (Tanda B) ============ */}
+        {/* ============ Timeline de las próximas 24 hs (protagonista, §13) ============ */}
         <section className="mt-8 sm:mt-10 gamer-card rounded-lg p-5 sm:p-6">
           <h2 className="font-display font-bold text-base mb-1 text-text-primary">
             🗓 Timeline · próximas 24 hs
@@ -370,6 +386,15 @@ export default function ZonaMiembros({ sesion }: Props) {
             vigentes={datos?.vigentes ?? {}}
           />
         </section>
+
+        <p className="font-body text-[11px] text-text-muted text-center mt-4">
+          Se actualiza solo cada 30 s
+          {ultimaCarga !== null && ahora !== null && <> · última actualización {textoHace(ultimaCarga, ahora)}</>}
+          {" "}·{" "}
+          <button onClick={recargar} className="underline hover:text-text-secondary">
+            actualizar ahora
+          </button>
+        </p>
 
         {/* ============ Historial ============ */}
         <section className="mt-8 sm:mt-10 gamer-card rounded-lg p-5 sm:p-6">
@@ -468,6 +493,59 @@ export default function ZonaMiembros({ sesion }: Props) {
                 );
               })}
             </ol>
+          )}
+        </section>
+
+        {/* ============ Tu avatar (colapsable al final, reorden 31/08 §13) ============ */}
+        <section className="mt-4 gamer-card rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAvatarAbierto((v) => !v)}
+            aria-expanded={avatarAbierto}
+            className="w-full text-left p-4 sm:p-5 hover:bg-bg-card/60 transition-colors"
+          >
+            <span className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-3 min-w-0">
+                <AvatarRaza raza={miRaza} size={30} />
+                <span className="min-w-0 font-body text-sm text-text-primary">
+                  <span className="font-display font-bold">Tu avatar</span>
+                  <span className="text-text-muted">
+                    {" "}· {sesion.personaje} · {miRaza ? RAZA_AVATAR_LABEL[miRaza] : "sin avatar"}
+                  </span>
+                </span>
+              </span>
+              <span className="shrink-0 text-text-muted" aria-hidden>
+                {avatarAbierto ? "▾" : "▸"}
+              </span>
+            </span>
+          </button>
+          {avatarAbierto && (
+            <div className="px-4 sm:px-5 pb-4 sm:pb-5">
+              <p className="font-body text-[11px] text-text-muted mb-3">
+                {sesion.miembro
+                  ? "Elegí tu raza: es el ícono que ven los demás cuando te apuntás a un evento."
+                  : "Sos admin sin fila de miembro: agregate desde /admin → Miembros para elegir avatar."}
+              </p>
+              {sesion.miembro && (
+                <div className="flex flex-wrap gap-1.5">
+                  {RAZAS_AVATAR.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => elegirRaza(r)}
+                      disabled={guardandoRaza}
+                      title={RAZA_AVATAR_LABEL[r]}
+                      className={`rounded-full p-0.5 transition-all disabled:opacity-50 ${
+                        miRaza === r ? "ring-2 ring-neon-cyan scale-110" : "opacity-70 hover:opacity-100"
+                      }`}
+                    >
+                      <AvatarRaza raza={r} size={30} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {errorRaza && <p className="font-body text-xs text-danger-red mt-2">{errorRaza}</p>}
+            </div>
           )}
         </section>
 
