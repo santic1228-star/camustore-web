@@ -67,12 +67,19 @@ export default function ZonaMiembros({ sesion }: Props) {
   const [permisoNotif, setPermisoNotif] = useState<string>("default");
   /**
    * Colapsable "Eventos de horario no público" (reorden 31/08, DECISIONES §13).
-   * null = automático (abierto solo si hay un aviso activo); true/false = el
-   * usuario lo tocó a mano y eso manda por el resto de la sesión.
+   * Arranca PLEGADO siempre (Santi, 31/08): con el "Me apunto" ya en los verdes de
+   * la timeline, las tarjetas quedan solo para la carga. La regla previa "abierto si
+   * hay aviso activo" queda SUPERADA el mismo día.
    */
-  const [noPublicoManual, setNoPublicoManual] = useState<boolean | null>(null);
+  const [noPublicoAbierto, setNoPublicoAbierto] = useState(false);
   /** Colapsable "Tu avatar" (al final de la página). Arranca plegado. */
   const [avatarAbierto, setAvatarAbierto] = useState(false);
+  /**
+   * La timeline también se pliega (Santi, 31/08) para llegar al historial, ranking
+   * y avatar sin scrollear todo. Arranca ABIERTA: es la protagonista. Plegada se
+   * oculta con CSS (no se desmonta) para no perder el foco ni recargar apuntados.
+   */
+  const [timelineAbierta, setTimelineAbierta] = useState(true);
   /** Umbrales ya disparados en esta sesión: "tipo:resultadoMs:umbral". */
   const disparadosRef = useRef<Set<string>>(new Set());
   const tituloOriginalRef = useRef<string | null>(null);
@@ -217,12 +224,8 @@ export default function ZonaMiembros({ sesion }: Props) {
     }
   }
 
-  // ============ Reorden 31/08 (DECISIONES §13): estado del colapsable ============
-  // "Por vencer" = mismo criterio que los avisos: algo a ≤15 min o recién
-  // abierto/respawneado (≤5 min). Mientras no haya toque manual, el colapsable
-  // sigue esta regla en vivo (se abre solo cuando un aviso se activa).
-  let hayAvisoActivo = false;
-  /** Piezas del resumen del título plegado: solo lo que vence en <1 h. */
+  // ============ Reorden 31/08 (DECISIONES §13): resumen del título plegado ============
+  /** Solo lo que vence en <1 h (o abrió/respawneó hace ≤5 min). */
   const resumenPlegado: string[] = [];
   if (ahora !== null && datos) {
     for (const config of EVENTOS) {
@@ -231,21 +234,14 @@ export default function ZonaMiembros({ sesion }: Props) {
       const { estado, desconocido } = vistaDeRegistro(config, registro, ahora);
       if (desconocido) continue;
       if (estado.listo) {
-        if (-estado.faltaSeg <= 300) {
-          hayAvisoActivo = true;
-          resumenPlegado.push(`${config.icono} ¡${config.nombre} ahora!`);
-        }
-      } else {
-        if (estado.aviso !== null) hayAvisoActivo = true;
-        if (estado.faltaSeg < 3600) {
-          resumenPlegado.push(
-            `${config.icono} ${config.nombre} en ${Math.max(1, Math.ceil(estado.faltaSeg / 60))} min`
-          );
-        }
+        if (-estado.faltaSeg <= 300) resumenPlegado.push(`${config.icono} ¡${config.nombre} ahora!`);
+      } else if (estado.faltaSeg < 3600) {
+        resumenPlegado.push(
+          `${config.icono} ${config.nombre} en ${Math.max(1, Math.ceil(estado.faltaSeg / 60))} min`
+        );
       }
     }
   }
-  const noPublicoAbierto = noPublicoManual ?? hayAvisoActivo;
 
   async function borrar(id: string) {
     if (!confirm("¿Borrar este registro? Solo el admin puede hacerlo.")) return;
@@ -329,7 +325,7 @@ export default function ZonaMiembros({ sesion }: Props) {
         <section className="gamer-card rounded-lg overflow-hidden">
           <button
             type="button"
-            onClick={() => setNoPublicoManual(!noPublicoAbierto)}
+            onClick={() => setNoPublicoAbierto((v) => !v)}
             aria-expanded={noPublicoAbierto}
             className="w-full text-left p-4 sm:p-5 hover:bg-bg-card/60 transition-colors"
           >
@@ -371,22 +367,37 @@ export default function ZonaMiembros({ sesion }: Props) {
           )}
         </section>
 
-        {/* ============ Timeline de las próximas 24 hs (protagonista, §13) ============ */}
-        <section className="mt-8 sm:mt-10 gamer-card rounded-lg p-5 sm:p-6">
-          <h2 className="font-display font-bold text-base mb-1 text-text-primary">
-            🗓 Timeline · próximas 24 hs
-          </h2>
-          <p className="font-body text-xs text-text-secondary mb-4">
-            El calendario completo con los datos de la guild intercalados. Tocá una fila para ver
-            quién va y apuntarte a ese horario puntual.
-          </p>
-          <TimelineMiembros
-            sesion={sesion}
-            miRaza={miRaza}
-            vigentes={datos?.vigentes ?? {}}
-            asistenciasRegistros={asistencias}
-            onCambioAsistencia={recargar}
-          />
+        {/* ============ Timeline de las próximas 24 hs (protagonista, §13; colapsable 31/08) ============ */}
+        <section className="mt-8 sm:mt-10 gamer-card rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setTimelineAbierta((v) => !v)}
+            aria-expanded={timelineAbierta}
+            className="w-full text-left p-5 sm:p-6 hover:bg-bg-card/60 transition-colors"
+          >
+            <span className="flex items-center justify-between gap-3">
+              <span className="font-display font-bold text-base text-text-primary">
+                🗓 Timeline · próximas 24 hs
+              </span>
+              <span className="shrink-0 text-text-muted" aria-hidden>
+                {timelineAbierta ? "▾" : "▸"}
+              </span>
+            </span>
+            <span className="block font-body text-xs text-text-secondary mt-1">
+              {timelineAbierta
+                ? "El calendario completo con los datos de la guild intercalados. Tocá una fila para ver quién va y apuntarte a ese horario puntual."
+                : "Plegada · tocá para ver el calendario y los verdes de la guild."}
+            </span>
+          </button>
+          <div className={timelineAbierta ? "px-5 sm:px-6 pb-5 sm:pb-6" : "hidden"}>
+            <TimelineMiembros
+              sesion={sesion}
+              miRaza={miRaza}
+              vigentes={datos?.vigentes ?? {}}
+              asistenciasRegistros={asistencias}
+              onCambioAsistencia={recargar}
+            />
+          </div>
         </section>
 
         <p className="font-body text-[11px] text-text-muted text-center mt-4">
