@@ -317,6 +317,8 @@ export interface MiembroRow {
   notas: string | null;
   /** Avatar elegido por el miembro (27/08). null = todavía no eligió. */
   raza: Raza | null;
+  /** Foto de avatar subida por el miembro (M4, 31/08). null = se ve el ícono de raza. */
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -325,6 +327,7 @@ export type MiembroInsert = Pick<MiembroRow, "email" | "personaje"> & {
   activo?: boolean;
   notas?: string | null;
   raza?: Raza | null;
+  avatar_url?: string | null;
 };
 
 /** Por qué creemos que se va a pelear en ese evento (27/08). */

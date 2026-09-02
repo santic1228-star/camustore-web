@@ -26,6 +26,7 @@ import {
   cargarAsistenciasCalendario,
   desapuntarse,
   desapuntarseCalendario,
+  type MapaAvatares,
   type SesionMiembro,
 } from "@/lib/miembros";
 import { indiceDiaServidor } from "@/lib/registros";
@@ -45,6 +46,8 @@ interface Props {
   vigentes: Partial<Record<TipoEventoRegistro, EventoRegistroRow>>;
   /** Apuntados de los registros privados por registro_id (los carga ZonaMiembros). */
   asistenciasRegistros?: Record<string, AsistenciaRow[]>;
+  /** email → foto de avatar de cada miembro (M4, 31/08; los carga ZonaMiembros). */
+  avatares?: MapaAvatares;
   /** Avisar a ZonaMiembros que cambió una asistencia privada (recarga). */
   onCambioAsistencia?: () => void;
 }
@@ -54,6 +57,7 @@ export default function TimelineMiembros({
   miRaza,
   vigentes,
   asistenciasRegistros = {},
+  avatares = {},
   onCambioAsistencia,
 }: Props) {
   const [ahora, setAhora] = useState<number | null>(null);
@@ -95,14 +99,18 @@ export default function TimelineMiembros({
 
   /** Apuntados por clave: ocurrencias del calendario + privados (`priv-<tipo>` → registro vigente). */
   const apuntadosPorClave = useMemo<Record<string, ApuntadoTimeline[]>>(() => {
-    const out: Record<string, ApuntadoTimeline[]> = { ...asis };
+    // La foto se resuelve en vivo por email (M4): cambiar el avatar se refleja en lo ya apuntado.
+    const conFoto = (lista: ApuntadoTimeline[]): ApuntadoTimeline[] =>
+      lista.map((a) => ({ ...a, avatarUrl: avatares[a.email.toLowerCase()] ?? null }));
+    const out: Record<string, ApuntadoTimeline[]> = {};
+    for (const [clave, lista] of Object.entries(asis)) out[clave] = conFoto(lista);
     for (const it of items) {
       if (it.clase !== "privado") continue;
       const reg = vigentes[it.tipo];
-      if (reg) out[it.clave] = asistenciasRegistros[reg.id] ?? [];
+      if (reg) out[it.clave] = conFoto(asistenciasRegistros[reg.id] ?? []);
     }
     return out;
-  }, [asis, items, vigentes, asistenciasRegistros]);
+  }, [asis, items, vigentes, asistenciasRegistros, avatares]);
 
   const semanales = useMemo(
     () => (ahora === null ? [] : proximosSemanales(ahora, catalogo)),

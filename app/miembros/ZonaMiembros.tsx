@@ -5,15 +5,21 @@ import Link from "next/link";
 import { signOut } from "@/lib/auth";
 import {
   cargarAsistencias,
+  cargarAvatares,
   cargarRegistros,
   contarAportes,
   eliminarRegistro,
+  quitarMiAvatar,
   setMiRaza,
+  subirMiAvatar,
   type Aporte,
+  type MapaAvatares,
   type RegistrosCargados,
   type SesionMiembro,
 } from "@/lib/miembros";
 import AvatarRaza, { RAZAS_AVATAR, RAZA_AVATAR_LABEL } from "@/components/ui/AvatarRaza";
+import RecorteAvatar from "@/components/ui/RecorteAvatar";
+import { AVATAR_PX } from "@/lib/avatar-imagen";
 import type { AsistenciaRow, Raza } from "@/lib/database.types";
 import {
   AVISOS_MIN,
@@ -63,6 +69,15 @@ export default function ZonaMiembros({ sesion }: Props) {
   const [miRaza, setMiRazaLocal] = useState<Raza | null>(sesion.miembro?.raza ?? null);
   const [guardandoRaza, setGuardandoRaza] = useState(false);
   const [errorRaza, setErrorRaza] = useState<string | null>(null);
+  /** Foto de avatar propia (M4, 31/08). */
+  const [miAvatarUrl, setMiAvatarUrl] = useState<string | null>(sesion.miembro?.avatar_url ?? null);
+  /** email → foto de cada miembro, para pintar apuntados. Se recarga junto con los registros. */
+  const [avatares, setAvatares] = useState<MapaAvatares>({});
+  /** Archivo elegido y todavía sin encuadrar (abre el modal de recorte). */
+  const [archivoAvatar, setArchivoAvatar] = useState<File | null>(null);
+  const [quitandoAvatar, setQuitandoAvatar] = useState(false);
+  const [errorAvatar, setErrorAvatar] = useState<string | null>(null);
+  const inputAvatarRef = useRef<HTMLInputElement>(null);
   const [avisosOn, setAvisosOn] = useState(false);
   const [permisoNotif, setPermisoNotif] = useState<string>("default");
   /**
@@ -93,6 +108,7 @@ export default function ZonaMiembros({ sesion }: Props) {
       contarAportes().then(setAportes).catch(() => {});
       const ids = Object.values(d.vigentes).map((r) => r.id);
       cargarAsistencias(ids).then(setAsistencias).catch(() => {});
+      cargarAvatares().then(setAvatares).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar los registros.");
     }
@@ -224,6 +240,36 @@ export default function ZonaMiembros({ sesion }: Props) {
     }
   }
 
+  // ============ Foto de avatar (M4, 31/08, DECISIONES §12) ============
+  function elegirArchivoAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    e.target.value = ""; // permite volver a elegir el mismo archivo
+    setErrorAvatar(null);
+    if (f) setArchivoAvatar(f);
+  }
+
+  /** Lo llama el modal con la imagen ya recortada a 256×256. */
+  async function confirmarAvatar(blob: Blob, extension: "webp" | "jpg") {
+    const url = await subirMiAvatar(sesion, blob, extension); // el modal muestra el error si falla
+    setMiAvatarUrl(url);
+    setAvatares((prev) => ({ ...prev, [sesion.email]: url }));
+    setArchivoAvatar(null);
+  }
+
+  async function quitarAvatar() {
+    setQuitandoAvatar(true);
+    setErrorAvatar(null);
+    try {
+      await quitarMiAvatar(sesion);
+      setMiAvatarUrl(null);
+      setAvatares((prev) => ({ ...prev, [sesion.email]: null }));
+    } catch (e) {
+      setErrorAvatar(e instanceof Error ? e.message : String(e));
+    } finally {
+      setQuitandoAvatar(false);
+    }
+  }
+
   // ============ Reorden 31/08 (DECISIONES §13): resumen del título plegado ============
   /** Solo lo que vence en <1 h (o abrió/respawneó hace ≤5 min). */
   const resumenPlegado: string[] = [];
@@ -263,7 +309,7 @@ export default function ZonaMiembros({ sesion }: Props) {
               Miembros · con login
             </p>
             <h1 className="font-display font-bold text-4xl sm:text-5xl text-text-primary leading-none">
-              Timers compartidos
+              Zona de miembros
             </h1>
             <p className="font-body text-sm text-text-secondary mt-3 leading-relaxed">
               Lo que carga uno lo ven todos. Horas en{" "}
@@ -359,6 +405,7 @@ export default function ZonaMiembros({ sesion }: Props) {
                 return r ? asistencias[r.id] ?? [] : [];
               })()}
               miRaza={miRaza}
+              avatares={avatares}
                   onGuardado={recargar}
                   onCambioAsistencia={recargar}
                 />
@@ -395,6 +442,7 @@ export default function ZonaMiembros({ sesion }: Props) {
               miRaza={miRaza}
               vigentes={datos?.vigentes ?? {}}
               asistenciasRegistros={asistencias}
+              avatares={avatares}
               onCambioAsistencia={recargar}
             />
           </div>
@@ -519,11 +567,12 @@ export default function ZonaMiembros({ sesion }: Props) {
           >
             <span className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-3 min-w-0">
-                <AvatarRaza raza={miRaza} size={30} />
+                <AvatarRaza raza={miRaza} src={miAvatarUrl} size={30} />
                 <span className="min-w-0 font-body text-sm text-text-primary">
                   <span className="font-display font-bold">Tu avatar</span>
                   <span className="text-text-muted">
-                    {" "}· {sesion.personaje} · {miRaza ? RAZA_AVATAR_LABEL[miRaza] : "sin avatar"}
+                    {" "}· {sesion.personaje} · {miRaza ? RAZA_AVATAR_LABEL[miRaza] : "sin raza"}
+                    {miAvatarUrl ? " · con foto" : ""}
                   </span>
                 </span>
               </span>
@@ -534,11 +583,59 @@ export default function ZonaMiembros({ sesion }: Props) {
           </button>
           {avatarAbierto && (
             <div className="px-4 sm:px-5 pb-4 sm:pb-5">
-              <p className="font-body text-[11px] text-text-muted mb-3">
-                {sesion.miembro
-                  ? "Elegí tu raza: es el ícono que ven los demás cuando te apuntás a un evento."
-                  : "Sos admin sin fila de miembro: agregate desde /admin → Miembros para elegir avatar."}
-              </p>
+              {!sesion.miembro && (
+                <p className="font-body text-[11px] text-text-muted mb-3">
+                  Sos admin sin fila de miembro: agregate desde /admin → Miembros para elegir avatar.
+                </p>
+              )}
+
+              {/* ---- Foto propia (M4) ---- */}
+              {sesion.miembro && (
+                <div className="flex items-center gap-4 mb-4">
+                  <AvatarRaza raza={miRaza} src={miAvatarUrl} size={72} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[11px] text-text-muted leading-relaxed">
+                      {miAvatarUrl
+                        ? "Esta es la foto que ven los demás cuando te apuntás. El aro lleva el color de tu raza."
+                        : `Subí una foto: se recorta acá, en tu celu, a ${AVATAR_PX}×${AVATAR_PX} (~20 KB). Sin foto se ve el ícono de tu raza.`}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <input
+                        ref={inputAvatarRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={elegirArchivoAvatar}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => inputAvatarRef.current?.click()}
+                        disabled={quitandoAvatar}
+                        className="px-3 py-1.5 rounded font-body text-xs uppercase tracking-widest border border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan/10 disabled:opacity-50"
+                      >
+                        {miAvatarUrl ? "Cambiar foto" : "Subir foto"}
+                      </button>
+                      {miAvatarUrl && (
+                        <button
+                          type="button"
+                          onClick={quitarAvatar}
+                          disabled={quitandoAvatar}
+                          className="px-3 py-1.5 rounded font-body text-xs uppercase tracking-widest border border-border-strong text-text-secondary hover:text-danger-red hover:border-danger-red/50 disabled:opacity-50"
+                        >
+                          {quitandoAvatar ? "Quitando…" : "Quitar foto"}
+                        </button>
+                      )}
+                    </div>
+                    {errorAvatar && <p className="font-body text-xs text-danger-red mt-2">{errorAvatar}</p>}
+                  </div>
+                </div>
+              )}
+
+              {sesion.miembro && (
+                <p className="font-body text-[11px] text-text-muted mb-2">
+                  Tu raza: {miAvatarUrl ? "da el color del aro de tu foto." : "es el ícono que ven los demás cuando te apuntás a un evento."}
+                </p>
+              )}
               {sesion.miembro && (
                 <div className="flex flex-wrap gap-1.5">
                   {RAZAS_AVATAR.map((r) => (
@@ -561,6 +658,15 @@ export default function ZonaMiembros({ sesion }: Props) {
             </div>
           )}
         </section>
+
+        {archivoAvatar && (
+          <RecorteAvatar
+            archivo={archivoAvatar}
+            raza={miRaza}
+            onCancelar={() => setArchivoAvatar(null)}
+            onConfirmar={confirmarAvatar}
+          />
+        )}
 
         {/* ============ Cómo funciona ============ */}
         <section className="mt-4 rounded-lg border border-dashed border-border-strong p-5 sm:p-6">

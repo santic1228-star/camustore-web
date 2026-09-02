@@ -20,7 +20,7 @@ import {
   type EventoConfig,
   type RegistroNuevo,
 } from "@/lib/registros";
-import { apuntarse, desapuntarse, insertarRegistro, type SesionMiembro } from "@/lib/miembros";
+import { apuntarse, desapuntarse, insertarRegistro, type MapaAvatares, type SesionMiembro } from "@/lib/miembros";
 import AvatarRaza from "@/components/ui/AvatarRaza";
 import type { AsistenciaRow, EventoRegistroRow, MotivoPelea, Raza } from "@/lib/database.types";
 
@@ -40,12 +40,14 @@ interface Props {
   asistencias: AsistenciaRow[];
   /** Avatar del logueado, para el snapshot al apuntarse. */
   miRaza: Raza | null;
+  /** email → foto de avatar de cada miembro (M4, 31/08). */
+  avatares?: MapaAvatares;
   onGuardado: () => void;
   onCambioAsistencia: () => void;
 }
 
 export default function TarjetaEvento({
-  config, registro, ahora, sesion, asistencias, miRaza, onGuardado, onCambioAsistencia,
+  config, registro, ahora, sesion, asistencias, miRaza, avatares = {}, onGuardado, onCambioAsistencia,
 }: Props) {
   const esGaion = config.tipo === "gaion";
   const [formAbierto, setFormAbierto] = useState(false);
@@ -277,7 +279,7 @@ export default function TarjetaEvento({
                           a.email === sesion.email ? "text-neon-cyan" : "text-text-primary"
                         }`}
                       >
-                        <AvatarRaza raza={a.raza} size={22} />
+                        <AvatarRaza raza={a.raza} src={avatares[a.email.toLowerCase()] ?? null} size={22} />
                         {a.personaje}
                       </span>
                     ))}

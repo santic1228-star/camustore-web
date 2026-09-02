@@ -219,6 +219,87 @@ export async function setMiRaza(raza: Raza | null): Promise<void> {
 }
 
 // =====================================================
+// Avatar por imagen (M4, 31/08). Bucket público `avatares`, carpeta = id del
+// miembro. La columna `miembros.avatar_url` se cambia vía `miembro_set_avatar`
+// (security definer, mismo patrón que la raza). SQL: camustore_avatares.sql.
+// =====================================================
+
+export const BUCKET_AVATARES = "avatares";
+
+/** email → avatar_url de todos los miembros (para pintar apuntados con su foto). */
+export type MapaAvatares = Record<string, string | null>;
+
+/**
+ * Trae el avatar de cada miembro. Se resuelve EN VIVO (no snapshot): si alguien
+ * cambia la foto, se actualiza en todo lo que ya tenía apuntado.
+ */
+export async function cargarAvatares(): Promise<MapaAvatares> {
+  const { data, error } = await supabase.from("miembros").select("email, avatar_url");
+  if (error) throw new Error(error.message);
+  const out: MapaAvatares = {};
+  for (const m of (data ?? []) as { email: string; avatar_url: string | null }[]) {
+    out[m.email.toLowerCase()] = m.avatar_url;
+  }
+  return out;
+}
+
+/** Guarda la URL en `miembros.avatar_url` (o null para quitarla). */
+async function setMiAvatarUrl(url: string | null): Promise<void> {
+  const { error } = await supabase.rpc("miembro_set_avatar", { nueva: url });
+  if (error) throw new Error(`No se pudo guardar el avatar: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
+}
+
+/** Borra todos los archivos de la carpeta del miembro salvo `conservar`. */
+async function limpiarCarpetaAvatar(carpeta: string, conservar?: string): Promise<void> {
+  const { data, error } = await supabase.storage.from(BUCKET_AVATARES).list(carpeta);
+  if (error || !data) return; // limpiar es cosmético: no frenamos por esto
+  const viejos = data.map((f) => `${carpeta}/${f.name}`).filter((p) => p !== conservar);
+  if (viejos.length > 0) await supabase.storage.from(BUCKET_AVATARES).remove(viejos);
+}
+
+/**
+ * Sube la imagen ya recortada (256×256) a `<id>/<epoch>.<ext>` y la deja como
+ * avatar del miembro. El nombre lleva la fecha para que el CDN no sirva la
+ * foto anterior al reemplazar; la anterior se borra después de guardar.
+ */
+export async function subirMiAvatar(
+  sesion: SesionMiembro,
+  blob: Blob,
+  extension: "webp" | "jpg",
+): Promise<string> {
+  if (!sesion.miembro) {
+    throw new Error("Sos admin sin fila de miembro: agregate desde /admin → Miembros para tener avatar.");
+  }
+  const carpeta = sesion.miembro.id;
+  const ruta = `${carpeta}/${Date.now()}.${extension}`;
+  const { error } = await supabase.storage.from(BUCKET_AVATARES).upload(ruta, blob, {
+    contentType: extension === "webp" ? "image/webp" : "image/jpeg",
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (error) {
+    throw new Error(`No se pudo subir la foto: ${error.message}`);
+  }
+  const url = supabase.storage.from(BUCKET_AVATARES).getPublicUrl(ruta).data.publicUrl;
+  try {
+    await setMiAvatarUrl(url);
+  } catch (e) {
+    // Si la DB no la aceptó, no dejamos el archivo huérfano.
+    await supabase.storage.from(BUCKET_AVATARES).remove([ruta]);
+    throw e;
+  }
+  await limpiarCarpetaAvatar(carpeta, ruta);
+  return url;
+}
+
+/** Quita la foto: `avatar_url = null` y borra la carpeta. Vuelve el ícono de raza. */
+export async function quitarMiAvatar(sesion: SesionMiembro): Promise<void> {
+  if (!sesion.miembro) return;
+  await setMiAvatarUrl(null);
+  await limpiarCarpetaAvatar(sesion.miembro.id);
+}
+
+// =====================================================
 // Asistencias: quién se apunta a qué registro (27/08)
 // =====================================================
 

@@ -4,11 +4,13 @@ import type { Raza } from "@/lib/database.types";
 import { RAZA_COLORS } from "@/lib/razas";
 
 // =====================================================
-// Avatar por raza (27/08/2026)
+// Avatar por raza (27/08/2026) + foto propia (M4, 31/08/2026)
 // Seis glifos SVG simples y ORIGINALES (no son arte del juego): el arma o
 // instrumento característico de cada clase. Cada miembro elige el suyo en
 // /miembros y aparece junto a su nombre cuando se apunta a un evento.
-// Para reemplazarlos por PNG: cambiar `GLIFOS` por <img src="/avatares/x.png">.
+// Con `src` (la foto que subió el miembro, DECISIONES §12) el círculo muestra
+// la foto y el aro conserva el color de la raza (Santi, 31/08: "foto con
+// borde del color de la raza"). Sin foto, el glifo de siempre (fallback).
 // =====================================================
 
 export const RAZAS_AVATAR: Raza[] = ["Knight", "Wizard", "Elf", "Gladiator", "Lord", "Summoner"];
@@ -78,6 +80,8 @@ const GLIFOS: Record<Raza, JSX.Element> = {
 
 interface Props {
   raza: Raza | null | undefined;
+  /** Foto del miembro (URL pública del bucket `avatares`). Sin src → glifo de raza. */
+  src?: string | null;
   /** Diámetro en px. */
   size?: number;
   className?: string;
@@ -85,26 +89,41 @@ interface Props {
 }
 
 /**
- * Círculo con el color de la raza y el glifo adentro. Sin raza: un signo de
- * pregunta apagado (miembro que todavía no eligió avatar).
+ * Círculo con el color de la raza y, adentro, la foto del miembro si la tiene
+ * o el glifo de la raza. Sin raza ni foto: un signo de pregunta apagado
+ * (miembro que todavía no eligió avatar).
  */
-export default function AvatarRaza({ raza, size = 28, className = "", title }: Props) {
+export default function AvatarRaza({ raza, src, size = 28, className = "", title }: Props) {
   const color = raza ? RAZA_COLORS[raza] : "#5a5a6e";
   const label = title ?? (raza ? RAZA_AVATAR_LABEL[raza] : "Sin avatar");
+  const borde = size >= 40 ? 2 : 1.5;
   return (
     <span
       role="img"
       aria-label={label}
       title={label}
-      className={`inline-flex items-center justify-center rounded-full shrink-0 ${className}`}
+      className={`inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden ${className}`}
       style={{
         width: size,
         height: size,
         background: `${color}22`,
-        border: `1.5px solid ${color}`,
+        border: `${borde}px solid ${color}`,
         boxShadow: raza ? `0 0 8px ${color}55` : undefined,
       }}
     >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- bucket externo, tamaño fijo, sin next/image
+        <img
+          src={src}
+          alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover rounded-full"
+          draggable={false}
+        />
+      ) : (
       <svg
         viewBox="0 0 24 24"
         width={size * 0.62}
@@ -118,6 +137,7 @@ export default function AvatarRaza({ raza, size = 28, className = "", title }: P
       >
         {raza ? GLIFOS[raza] : <path d="M9 9a3 3 0 1 1 4 2.8c-.7.4-1 .9-1 1.7M12 17h.01" />}
       </svg>
+      )}
     </span>
   );
 }

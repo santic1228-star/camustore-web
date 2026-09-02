@@ -43,7 +43,10 @@ import type { AsistenciaRow, CalAsistenciaRow } from "@/lib/database.types";
  * calendario (`calendario_asistencias`) como las de los registros privados
  * (`eventos_asistencias`): así los verdes también tienen "Me apunto" (31/08).
  */
-export type ApuntadoTimeline = Pick<CalAsistenciaRow | AsistenciaRow, "id" | "email" | "personaje" | "raza">;
+export type ApuntadoTimeline = Pick<CalAsistenciaRow | AsistenciaRow, "id" | "email" | "personaje" | "raza"> & {
+  /** Foto del miembro (M4, 31/08), resuelta en vivo por TimelineMiembros. Sin foto → glifo de raza. */
+  avatarUrl?: string | null;
+};
 
 interface Props {
   items: ItemTimeline[];
@@ -285,7 +288,7 @@ function CuerpoTarjeta({
       {!enfocada && apuntados.length > 0 && (
         <span className="flex items-center gap-1 mt-1.5">
           {apuntados.slice(0, 5).map((a) => (
-            <AvatarRaza key={a.id} raza={a.raza} size={16} />
+            <AvatarRaza key={a.id} raza={a.raza} src={a.avatarUrl} size={16} />
           ))}
           <span className="font-body text-[10px] text-text-secondary ml-0.5">
             {apuntados.length}
@@ -339,7 +342,7 @@ function BloqueApuntados({
                 a.email === yo ? "text-neon-cyan" : "text-text-primary"
               }`}
             >
-              <AvatarRaza raza={a.raza} size={16} />
+              <AvatarRaza raza={a.raza} src={a.avatarUrl} size={16} />
               {a.personaje}
             </span>
           ))}
