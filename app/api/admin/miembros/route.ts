@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { esEmailAdmin } from "@/lib/admins";
+import { esGuild, type Guild } from "@/lib/guilds";
 
 // =====================================================
 // /api/admin/miembros — corre en el SERVIDOR (Vercel), nunca en el navegador.
@@ -9,8 +10,10 @@ import { esEmailAdmin } from "@/lib/admins";
 // crear usuarios de Authentication. El navegador solo tiene la clave pública.
 //
 // Acciones (POST con JSON):
-//   { accion: "alta",        email, personaje }  → crea el usuario con una clave
-//                                                  generada + inserta en `miembros`.
+//   { accion: "alta",  email, personaje, guild? } → crea el usuario con una clave
+//                                                  generada + inserta en `miembros`
+//                                                  (guild: "propia" | "alianza",
+//                                                  default propia — alianza 10/09).
 //                                                  Devuelve la clave para pasársela.
 //   { accion: "nueva_clave", email }             → genera otra clave para ese usuario.
 //   { accion: "baja",        email }             → borra el usuario de Authentication
@@ -33,6 +36,7 @@ interface Body {
   accion?: Accion;
   email?: string;
   personaje?: string;
+  guild?: string;
 }
 
 function json(status: number, data: Record<string, unknown>) {
@@ -82,6 +86,7 @@ export async function POST(req: Request) {
   const accion = body.accion;
   const email = (body.email ?? "").trim().toLowerCase();
   const personaje = (body.personaje ?? "").trim();
+  const guild: Guild = esGuild(body.guild) ? body.guild : "propia";
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: "Email inválido." });
 
@@ -105,7 +110,7 @@ export async function POST(req: Request) {
       email,
       password: clave,
       email_confirm: true,
-      user_metadata: { personaje },
+      user_metadata: { personaje, guild },
     });
 
     if (errCrear) {
@@ -119,13 +124,14 @@ export async function POST(req: Request) {
       }
     }
 
-    const { error: errFila } = await admin.from("miembros").insert({ email, personaje, activo: true });
+    const { error: errFila } = await admin.from("miembros").insert({ email, personaje, activo: true, guild });
     if (errFila) return json(500, { error: "Usuario creado pero falló la fila de miembro: " + errFila.message });
 
     return json(200, {
       ok: true,
       email,
       personaje,
+      guild,
       clave: usuarioYaExistia ? null : clave,
       usuarioYaExistia,
     });

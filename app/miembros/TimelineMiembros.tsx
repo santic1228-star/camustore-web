@@ -8,6 +8,9 @@
  *     (Tier 3 y 2 por default; editable por evento desde el admin),
  *   - "Me apunto" también en los PRIVADOS (31/08): va a `eventos_asistencias`
  *     por registro vigente, la MISMA lista que muestra la tarjeta de carga.
+ *   - Alianza (10/09): los privados COMPARTIDOS por la otra guild entran con
+ *     distintivo y también tienen "Me apunto" (es para pedir ayuda). Los
+ *     apuntados de eventos públicos se ven mezclados, con tag de guild.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +30,7 @@ import {
   desapuntarse,
   desapuntarseCalendario,
   type MapaAvatares,
+  type MapaGuilds,
   type SesionMiembro,
 } from "@/lib/miembros";
 import { indiceDiaServidor } from "@/lib/registros";
@@ -42,12 +46,16 @@ import type { ApuntadoTimeline } from "@/components/TimelineZig";
 interface Props {
   sesion: SesionMiembro;
   miRaza: Raza | null;
-  /** Registros vigentes por tipo (los carga ZonaMiembros). */
+  /** Registros vigentes por tipo DE MI GUILD (los carga ZonaMiembros). */
   vigentes: Partial<Record<TipoEventoRegistro, EventoRegistroRow>>;
+  /** Vigentes de LA OTRA guild marcados "Compartir con la alianza" (10/09). */
+  compartidos?: Partial<Record<TipoEventoRegistro, EventoRegistroRow>>;
   /** Apuntados de los registros privados por registro_id (los carga ZonaMiembros). */
   asistenciasRegistros?: Record<string, AsistenciaRow[]>;
   /** email → foto de avatar de cada miembro (M4, 31/08; los carga ZonaMiembros). */
   avatares?: MapaAvatares;
+  /** email → guild de cada miembro (alianza, 10/09; los carga ZonaMiembros). */
+  guilds?: MapaGuilds;
   /** Avisar a ZonaMiembros que cambió una asistencia privada (recarga). */
   onCambioAsistencia?: () => void;
 }
@@ -56,8 +64,10 @@ export default function TimelineMiembros({
   sesion,
   miRaza,
   vigentes,
+  compartidos = {},
   asistenciasRegistros = {},
   avatares = {},
+  guilds = {},
   onCambioAsistencia,
 }: Props) {
   const [ahora, setAhora] = useState<number | null>(null);
@@ -94,23 +104,26 @@ export default function TimelineMiembros({
 
   const items = useMemo<ItemTimeline[]>(() => {
     if (ahora === null) return [];
-    return intercalarPrivados(itemsDeCalendario(itinerario24h(ahora, catalogo)), vigentes, ahora);
-  }, [ahora, catalogo, vigentes]);
+    return intercalarPrivados(itemsDeCalendario(itinerario24h(ahora, catalogo)), vigentes, ahora, 24, compartidos);
+  }, [ahora, catalogo, vigentes, compartidos]);
 
   /** Apuntados por clave: ocurrencias del calendario + privados (`priv-<tipo>` → registro vigente). */
   const apuntadosPorClave = useMemo<Record<string, ApuntadoTimeline[]>>(() => {
-    // La foto se resuelve en vivo por email (M4): cambiar el avatar se refleja en lo ya apuntado.
+    // La foto y la guild se resuelven en vivo por email (M4 / alianza): cambiar el
+    // avatar (o de guild) se refleja en lo ya apuntado.
     const conFoto = (lista: ApuntadoTimeline[]): ApuntadoTimeline[] =>
-      lista.map((a) => ({ ...a, avatarUrl: avatares[a.email.toLowerCase()] ?? null }));
+      lista.map((a) => {
+        const e = a.email.toLowerCase();
+        return { ...a, avatarUrl: avatares[e] ?? null, guild: guilds[e] };
+      });
     const out: Record<string, ApuntadoTimeline[]> = {};
     for (const [clave, lista] of Object.entries(asis)) out[clave] = conFoto(lista);
     for (const it of items) {
       if (it.clase !== "privado") continue;
-      const reg = vigentes[it.tipo];
-      if (reg) out[it.clave] = conFoto(asistenciasRegistros[reg.id] ?? []);
+      out[it.clave] = conFoto(asistenciasRegistros[it.registroId] ?? []);
     }
     return out;
-  }, [asis, items, vigentes, asistenciasRegistros, avatares]);
+  }, [asis, items, asistenciasRegistros, avatares, guilds]);
 
   const semanales = useMemo(
     () => (ahora === null ? [] : proximosSemanales(ahora, catalogo)),
@@ -127,10 +140,9 @@ export default function TimelineMiembros({
     try {
       if (it.clase === "privado") {
         // Misma tabla que la tarjeta de carga: apuntarse acá = apuntarse allá.
-        const reg = vigentes[it.tipo];
-        if (!reg) throw new Error("No hay registro vigente para apuntarse.");
-        if (yoVoy) await desapuntarse(reg.id, sesion.email);
-        else await apuntarse(reg.id, sesion, miRaza);
+        // Un compartido de la otra guild también se apunta acá (10/09).
+        if (yoVoy) await desapuntarse(it.registroId, sesion.email);
+        else await apuntarse(it.registroId, sesion, miRaza);
         onCambioAsistencia?.();
       } else {
         if (yoVoy) await desapuntarseCalendario(it.oc.evento.id, it.oc.inicioMs, sesion.email);
@@ -170,13 +182,14 @@ export default function TimelineMiembros({
         ahora={ahora}
         apuntados={apuntadosPorClave}
         yo={sesion.email}
+        miGuild={sesion.guild}
         onVoy={toggleVoy}
         cambiando={cambiando}
       />
 
       <p className="font-body text-[11px] text-text-muted">
-        Verde = dato de la guild (no está en la timeline pública). Tocá una tarjeta para enfocarla;
-        apuntarse es intención, no compromiso.
+        Verde = dato de la guild (no está en la timeline pública); con 🤝 es un horario que la otra guild
+        compartió con la alianza. Tocá una tarjeta para enfocarla; apuntarse es intención, no compromiso.
       </p>
     </div>
   );

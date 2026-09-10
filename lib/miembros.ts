@@ -12,12 +12,14 @@ import type {
   EventoRegistroInsert,
   EventoRegistroRow,
   MiembroInsert,
+  MiembroPerfilRow,
   MiembroRow,
   TipoEventoRegistro,
   AsistenciaRow,
   AsistenciaInsert,
   Raza,
 } from "./database.types";
+import { guildDe, type Guild } from "./guilds";
 
 // =====================================================
 // Identidad del miembro logueado
@@ -31,6 +33,8 @@ export interface SesionMiembro {
   /** Nombre para mostrar y para firmar registros. */
   personaje: string;
   email: string;
+  /** Guild del logueado (alianza, 10/09). Admin sin fila propia = `propia`. */
+  guild: Guild;
 }
 
 /**
@@ -52,10 +56,10 @@ export async function verificarMiembro(user: User | null): Promise<SesionMiembro
   const esAdmin = await checkIsAdmin(user);
 
   if (miembro?.activo) {
-    return { user, miembro, esAdmin, personaje: miembro.personaje, email };
+    return { user, miembro, esAdmin, personaje: miembro.personaje, email, guild: guildDe(miembro.guild) };
   }
   if (esAdmin) {
-    return { user, miembro: null, esAdmin, personaje: "Admin", email };
+    return { user, miembro: null, esAdmin, personaje: "Admin", email, guild: "propia" };
   }
   return null;
 }
@@ -79,6 +83,7 @@ export async function altaMiembro(input: MiembroInsert): Promise<void> {
     personaje: input.personaje.trim(),
     activo: input.activo ?? true,
     notas: input.notas ?? null,
+    guild: input.guild ?? "propia",
   });
   if (error) {
     if (error.code === "23505") throw new Error("Ese email ya está cargado.");
@@ -88,7 +93,7 @@ export async function altaMiembro(input: MiembroInsert): Promise<void> {
 
 export async function actualizarMiembro(
   id: string,
-  patch: Partial<Pick<MiembroRow, "personaje" | "activo" | "notas">>,
+  patch: Partial<Pick<MiembroRow, "personaje" | "activo" | "notas" | "guild">>,
 ): Promise<void> {
   const { error } = await supabase.from("miembros").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
@@ -110,6 +115,8 @@ export interface AltaResultado {
   /** Clave generada. null si el usuario de Authentication ya existía (conserva la suya). */
   clave: string | null;
   usuarioYaExistia: boolean;
+  /** Guild con la que se dio de alta (alianza, 10/09). */
+  guild?: Guild;
 }
 
 async function llamarApiAdmin<T>(body: Record<string, unknown>): Promise<T> {
@@ -127,8 +134,12 @@ async function llamarApiAdmin<T>(body: Record<string, unknown>): Promise<T> {
   return json;
 }
 
-export async function altaMiembroCompleta(email: string, personaje: string): Promise<AltaResultado> {
-  return llamarApiAdmin<AltaResultado>({ accion: "alta", email, personaje });
+export async function altaMiembroCompleta(
+  email: string,
+  personaje: string,
+  guild: Guild = "propia",
+): Promise<AltaResultado> {
+  return llamarApiAdmin<AltaResultado>({ accion: "alta", email, personaje, guild });
 }
 
 export async function nuevaClaveMiembro(email: string): Promise<string> {
@@ -141,35 +152,63 @@ export async function bajaMiembroCompleta(email: string): Promise<void> {
 }
 
 // =====================================================
-// Registros compartidos
+// Registros compartidos (por guild desde el 10/09)
 // =====================================================
 
 export interface RegistrosCargados {
-  /** Último registro por tipo (el vigente). */
+  /** Último registro por tipo (el vigente) DE MI GUILD. */
   vigentes: Partial<Record<TipoEventoRegistro, EventoRegistroRow>>;
-  /** Los últimos N registros de todos los tipos, más nuevo primero. */
+  /**
+   * Último registro por tipo de LA OTRA guild, solo los marcados "Compartir con
+   * la alianza" (10/09). Van a la timeline con distintivo; no a las tarjetas.
+   */
+  compartidos: Partial<Record<TipoEventoRegistro, EventoRegistroRow>>;
+  /** Los últimos N registros que puedo ver (mi guild + compartidos), más nuevo primero. */
   historial: EventoRegistroRow[];
 }
 
-export async function cargarRegistros(limiteHistorial = 30): Promise<RegistrosCargados> {
+/**
+ * Trae lo que la RLS deja ver (mi guild + lo compartido por la otra) y separa
+ * vigentes propios de compartidos ajenos. El filtro también va en la query
+ * para que el admin (que por RLS ve todo) vea lo mismo que su guild.
+ */
+export async function cargarRegistros(guild: Guild, limiteHistorial = 40): Promise<RegistrosCargados> {
   const { data, error } = await supabase
     .from("eventos_registros")
     .select("*")
+    .or(`guild.eq.${guild},compartido_alianza.eq.true`)
     .order("created_at", { ascending: false })
     .limit(limiteHistorial);
   if (error) throw new Error(error.message);
 
   const historial = (data ?? []) as EventoRegistroRow[];
   const vigentes: RegistrosCargados["vigentes"] = {};
+  const compartidos: RegistrosCargados["compartidos"] = {};
   for (const r of historial) {
-    if (!vigentes[r.tipo]) vigentes[r.tipo] = r; // viene ordenado desc: el primero de cada tipo es el último cargado
+    // viene ordenado desc: el primero de cada tipo (y guild) es el último cargado
+    if (guildDe(r.guild) === guild) {
+      if (!vigentes[r.tipo]) vigentes[r.tipo] = r;
+    } else if (r.compartido_alianza) {
+      if (!compartidos[r.tipo]) compartidos[r.tipo] = r;
+    }
   }
-  return { vigentes, historial };
+  return { vigentes, compartidos, historial };
 }
 
 export async function insertarRegistro(input: EventoRegistroInsert): Promise<void> {
   const { error } = await supabase.from("eventos_registros").insert(input);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(`${error.message}${error.code ? ` (código ${error.code})` : ""}`);
+}
+
+/**
+ * Prende/apaga "Compartir con la alianza" en un registro ya cargado, vía
+ * `registro_set_compartido` (security definer): solo sobre registros de mi guild.
+ */
+export async function setCompartidoAlianza(registroId: string, valor: boolean): Promise<void> {
+  const { error } = await supabase.rpc("registro_set_compartido", { registro: registroId, valor });
+  if (error) {
+    throw new Error(`No se pudo cambiar el compartir: ${error.message}${error.code ? ` (código ${error.code})` : ""}`);
+  }
 }
 
 export interface Aporte {
@@ -182,10 +221,11 @@ export interface Aporte {
  * historial completo). Se cuenta en el cliente; con miles de registros
  * seguirá siendo liviano porque solo trae una columna.
  */
-export async function contarAportes(): Promise<Aporte[]> {
+export async function contarAportes(guild: Guild): Promise<Aporte[]> {
   const { data, error } = await supabase
     .from("eventos_registros")
     .select("cargado_por_personaje")
+    .eq("guild", guild)
     .limit(5000);
   if (error) throw new Error(error.message);
 
@@ -229,18 +269,35 @@ export const BUCKET_AVATARES = "avatares";
 /** email → avatar_url de todos los miembros (para pintar apuntados con su foto). */
 export type MapaAvatares = Record<string, string | null>;
 
+/** email → guild de cada miembro (alianza, 10/09: distintivo en los apuntados). */
+export type MapaGuilds = Record<string, Guild>;
+
+export interface Perfiles {
+  avatares: MapaAvatares;
+  guilds: MapaGuilds;
+}
+
 /**
- * Trae el avatar de cada miembro. Se resuelve EN VIVO (no snapshot): si alguien
+ * Foto y guild de cada miembro (las DOS guilds), desde la vista `miembros_perfil`
+ * (SQL: camustore_alianza.sql). Se resuelve EN VIVO (no snapshot): si alguien
  * cambia la foto, se actualiza en todo lo que ya tenía apuntado.
  */
-export async function cargarAvatares(): Promise<MapaAvatares> {
-  const { data, error } = await supabase.from("miembros").select("email, avatar_url");
+export async function cargarPerfiles(): Promise<Perfiles> {
+  const { data, error } = await supabase.from("miembros_perfil").select("email, avatar_url, guild");
   if (error) throw new Error(error.message);
-  const out: MapaAvatares = {};
-  for (const m of (data ?? []) as { email: string; avatar_url: string | null }[]) {
-    out[m.email.toLowerCase()] = m.avatar_url;
+  const avatares: MapaAvatares = {};
+  const guilds: MapaGuilds = {};
+  for (const m of (data ?? []) as Pick<MiembroPerfilRow, "email" | "avatar_url" | "guild">[]) {
+    const e = m.email.toLowerCase();
+    avatares[e] = m.avatar_url;
+    guilds[e] = guildDe(m.guild);
   }
-  return out;
+  return { avatares, guilds };
+}
+
+/** Compat: solo las fotos. */
+export async function cargarAvatares(): Promise<MapaAvatares> {
+  return (await cargarPerfiles()).avatares;
 }
 
 /** Guarda la URL en `miembros.avatar_url` (o null para quitarla). */

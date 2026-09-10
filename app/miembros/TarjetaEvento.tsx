@@ -20,14 +20,26 @@ import {
   type EventoConfig,
   type RegistroNuevo,
 } from "@/lib/registros";
-import { apuntarse, desapuntarse, insertarRegistro, type MapaAvatares, type SesionMiembro } from "@/lib/miembros";
+import {
+  apuntarse,
+  desapuntarse,
+  insertarRegistro,
+  setCompartidoAlianza,
+  type MapaAvatares,
+  type MapaGuilds,
+  type SesionMiembro,
+} from "@/lib/miembros";
 import AvatarRaza from "@/components/ui/AvatarRaza";
+import { TagGuildApuntado } from "@/components/TimelineZig";
+import { GUILD_ICONO, GUILD_LABEL, otraGuild } from "@/lib/guilds";
 import type { AsistenciaRow, EventoRegistroRow, MotivoPelea, Raza } from "@/lib/database.types";
 
 // =====================================================
 // Una tarjeta por evento (Gaion / Kundun / Cryonox):
 //   arriba, el registro vigente que cargó alguien de la guild, en vivo;
-//   abajo, el form para cargar uno nuevo (lo ven todos al instante).
+//   abajo, el form para cargar uno nuevo (lo ve toda tu guild al instante).
+// Alianza (10/09): tilde "Compartir con la alianza" al cargar + interruptor
+// sobre el vigente para prenderlo/apagarlo después (registro_set_compartido).
 // =====================================================
 
 interface Props {
@@ -42,12 +54,14 @@ interface Props {
   miRaza: Raza | null;
   /** email → foto de avatar de cada miembro (M4, 31/08). */
   avatares?: MapaAvatares;
+  /** email → guild de cada miembro (alianza, 10/09): distintivo en los apuntados de la otra guild. */
+  guilds?: MapaGuilds;
   onGuardado: () => void;
   onCambioAsistencia: () => void;
 }
 
 export default function TarjetaEvento({
-  config, registro, ahora, sesion, asistencias, miRaza, avatares = {}, onGuardado, onCambioAsistencia,
+  config, registro, ahora, sesion, asistencias, miRaza, avatares = {}, guilds = {}, onGuardado, onCambioAsistencia,
 }: Props) {
   const esGaion = config.tipo === "gaion";
   const [formAbierto, setFormAbierto] = useState(false);
@@ -61,14 +75,33 @@ export default function TarjetaEvento({
 
   const mostrarForm = formAbierto || !registro;
 
+  const nombreOtraGuild = GUILD_LABEL[otraGuild(sesion.guild)];
   const extras = {
     sePelea: registro?.se_pelea ?? false,
     sePeleaMotivo: registro?.se_pelea_motivo ?? null,
     van: asistencias.map((a) => a.personaje),
+    compartidoCon: registro?.compartido_alianza ? nombreOtraGuild : undefined,
   };
   const yoVoy = asistencias.some((a) => a.email === sesion.email);
   const [cambiandoAsis, setCambiandoAsis] = useState(false);
   const [errorAsis, setErrorAsis] = useState<string | null>(null);
+  const [cambiandoCompartir, setCambiandoCompartir] = useState(false);
+  const [errorCompartir, setErrorCompartir] = useState<string | null>(null);
+
+  /** Prende/apaga "Compartir con la alianza" sobre el vigente (10/09). */
+  async function toggleCompartir() {
+    if (!registro) return;
+    setCambiandoCompartir(true);
+    setErrorCompartir(null);
+    try {
+      await setCompartidoAlianza(registro.id, !registro.compartido_alianza);
+      onGuardado(); // recarga: el registro vuelve con el flag nuevo
+    } catch (e) {
+      setErrorCompartir(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCambiandoCompartir(false);
+    }
+  }
 
   async function toggleVoy() {
     if (!registro) return;
@@ -140,6 +173,14 @@ export default function TarjetaEvento({
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
+        {registro?.compartido_alianza && !vista?.desconocido && (
+          <span
+            className="badge whitespace-nowrap border bg-luck-gold/10 text-luck-gold border-luck-gold/50"
+            title={`${nombreOtraGuild} lo ve en su timeline y puede apuntarse`}
+          >
+            {GUILD_ICONO.alianza} Compartido con {nombreOtraGuild}
+          </span>
+        )}
         {registro?.se_pelea && !vista?.desconocido && (
           <span
             className="badge whitespace-nowrap border bg-danger-red/15 text-danger-red border-danger-red/50"
@@ -281,6 +322,7 @@ export default function TarjetaEvento({
                       >
                         <AvatarRaza raza={a.raza} src={avatares[a.email.toLowerCase()] ?? null} size={22} />
                         {a.personaje}
+                        <TagGuildApuntado guild={guilds[a.email.toLowerCase()]} miGuild={sesion.guild} />
                       </span>
                     ))}
                   </div>
@@ -304,6 +346,34 @@ export default function TarjetaEvento({
                 <p className="font-body text-[11px] text-text-muted mt-2">
                   Apuntarse es intención, no compromiso: alguno puede no llegar.
                 </p>
+              </div>
+            )}
+
+            {/* ============ Compartir con la alianza, sobre el vigente (10/09) ============ */}
+            {!vista.estado.vencido && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={toggleCompartir}
+                  disabled={cambiandoCompartir}
+                  className={`px-4 py-1.5 rounded font-body text-xs uppercase tracking-widest border transition-colors disabled:opacity-50 ${
+                    registro.compartido_alianza
+                      ? "bg-luck-gold/10 text-luck-gold border-luck-gold/50 hover:bg-danger-red/10 hover:text-danger-red hover:border-danger-red/50"
+                      : "border-border-strong text-text-secondary hover:text-luck-gold hover:border-luck-gold/60"
+                  }`}
+                  title={
+                    registro.compartido_alianza
+                      ? `Click para dejar de compartirlo con ${nombreOtraGuild}`
+                      : `${nombreOtraGuild} lo va a ver en su timeline y va a poder apuntarse`
+                  }
+                >
+                  {cambiandoCompartir
+                    ? "…"
+                    : registro.compartido_alianza
+                      ? `${GUILD_ICONO.alianza} Compartido con ${nombreOtraGuild} · dejar de compartir`
+                      : `${GUILD_ICONO.alianza} Compartir con ${nombreOtraGuild}`}
+                </button>
+                {errorCompartir && <p className="font-body text-xs text-danger-red mt-2">{errorCompartir}</p>}
               </div>
             )}
 
@@ -383,6 +453,8 @@ function useGuardar(sesion: SesionMiembro, config: EventoConfig, onGuardado: () 
         cargado_por_personaje: sesion.personaje,
         se_pelea: nuevo.sePelea ?? false,
         se_pelea_motivo: nuevo.sePelea ? (nuevo.sePeleaMotivo ?? "otro") : null,
+        guild: sesion.guild,
+        compartido_alianza: nuevo.compartirAlianza ?? false,
       });
       onGuardado();
     } catch (e) {
@@ -452,6 +524,32 @@ function CampoPelea({ valor, onChange }: { valor: EstadoPelea; onChange: (p: Est
 }
 
 // =====================================================
+// "Compartir con la alianza" (10/09): tilde compartida por los dos forms.
+// Criterio de Santi: el horario es mío, pero si necesito ayuda o no puedo
+// ir, se comparte (de un lado y hacia el otro).
+// =====================================================
+
+function CampoCompartir({ valor, onChange, sesion }: { valor: boolean; onChange: (v: boolean) => void; sesion: SesionMiembro }) {
+  const nombre = GUILD_LABEL[otraGuild(sesion.guild)];
+  return (
+    <div className="rounded-lg border border-border-base bg-bg-deep/40 p-3">
+      <label className="flex items-center gap-2.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={valor}
+          onChange={(e) => onChange(e.target.checked)}
+          className="w-4 h-4 accent-[#ffd700]"
+        />
+        <span className="font-body text-sm text-text-primary">
+          {GUILD_ICONO.alianza} <span className="font-bold">Compartir con {nombre}</span>
+          <span className="text-text-muted"> · lo ven en su timeline y pueden apuntarse (si necesitás ayuda o no podés ir)</span>
+        </span>
+      </label>
+    </div>
+  );
+}
+
+// =====================================================
 // Form boss: hora de la muerte (HH:MM) o "Lo acabo de matar"
 // =====================================================
 
@@ -460,7 +558,13 @@ function FormBoss({ sesion, config, onGuardado }: FormProps) {
   const horaP = useMemo(() => parseHoraServidor(hora), [hora]);
   const { guardar, guardando, error } = useGuardar(sesion, config, onGuardado);
   const [pelea, setPelea] = usePelea();
-  const conPelea = (r: RegistroNuevo): RegistroNuevo => ({ ...r, sePelea: pelea.sePelea, sePeleaMotivo: pelea.motivo });
+  const [compartir, setCompartir] = useState(false);
+  const conPelea = (r: RegistroNuevo): RegistroNuevo => ({
+    ...r,
+    sePelea: pelea.sePelea,
+    sePeleaMotivo: pelea.motivo,
+    compartirAlianza: compartir,
+  });
 
   function guardarTipeada() {
     if (horaP.seg === null) return;
@@ -475,9 +579,10 @@ function FormBoss({ sesion, config, onGuardado }: FormProps) {
   return (
     <div className="space-y-3">
       <p className="font-body text-xs uppercase tracking-[0.3em] text-text-muted">
-        Cargar la muerte · lo ven todos
+        Cargar la muerte · lo ve toda tu guild
       </p>
       <CampoPelea valor={pelea} onChange={setPelea} />
+      <CampoCompartir valor={compartir} onChange={setCompartir} sesion={sesion} />
       <button
         type="button"
         onClick={guardarAhora}
@@ -526,6 +631,7 @@ function FormGaion({ sesion, config, onGuardado }: FormProps) {
   const standbyP = useMemo(() => parseStandby(standby), [standby]);
   const { guardar, guardando, error } = useGuardar(sesion, config, onGuardado);
   const [pelea, setPelea] = usePelea();
+  const [compartir, setCompartir] = useState(false);
 
   const listo = horaP.seg !== null && standbyP.seg !== null;
 
@@ -538,13 +644,13 @@ function FormGaion({ sesion, config, onGuardado }: FormProps) {
 
   function guardarCaptura() {
     if (!preview) return;
-    guardar({ ...preview, sePelea: pelea.sePelea, sePeleaMotivo: pelea.motivo });
+    guardar({ ...preview, sePelea: pelea.sePelea, sePeleaMotivo: pelea.motivo, compartirAlianza: compartir });
   }
 
   return (
     <div className="space-y-3">
       <p className="font-body text-xs uppercase tracking-[0.3em] text-text-muted">
-        Cargar la captura del fin del Gaion · lo ven todos
+        Cargar la captura del fin del Gaion · lo ve toda tu guild
       </p>
       <div className="rounded-lg border border-border-strong bg-[#1c1c24] p-3 shadow-[inset_0_0_40px_rgba(0,0,0,0.6)] space-y-3">
         <CampoHud
@@ -575,6 +681,7 @@ function FormGaion({ sesion, config, onGuardado }: FormProps) {
         />
       </div>
       <CampoPelea valor={pelea} onChange={setPelea} />
+      <CampoCompartir valor={compartir} onChange={setCompartir} sesion={sesion} />
       {preview && (
         <p className="font-body text-xs text-text-secondary text-center">
           Se guarda: abre a las{" "}
@@ -587,7 +694,7 @@ function FormGaion({ sesion, config, onGuardado }: FormProps) {
         disabled={!listo || guardando}
         className="btn-primary w-full px-5 py-3 rounded font-body text-sm uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {guardando ? "Guardando…" : "Guardar para todos"}
+        {guardando ? "Guardando…" : "Guardar para la guild"}
       </button>
       {error && <p className="font-body text-xs text-danger-red">{error}</p>}
     </div>

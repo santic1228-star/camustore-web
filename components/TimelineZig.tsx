@@ -36,6 +36,7 @@ import {
 } from "@/lib/timeline-items";
 import { fechaCortaServidor, indiceDiaServidor } from "@/lib/registros";
 import { formatDuracion } from "@/lib/tiempo";
+import { GUILD_ICONO, GUILD_LABEL, GUILD_TAG, otraGuild, type Guild } from "@/lib/guilds";
 import type { AsistenciaRow, CalAsistenciaRow } from "@/lib/database.types";
 
 /**
@@ -46,6 +47,8 @@ import type { AsistenciaRow, CalAsistenciaRow } from "@/lib/database.types";
 export type ApuntadoTimeline = Pick<CalAsistenciaRow | AsistenciaRow, "id" | "email" | "personaje" | "raza"> & {
   /** Foto del miembro (M4, 31/08), resuelta en vivo por TimelineMiembros. Sin foto → glifo de raza. */
   avatarUrl?: string | null;
+  /** Guild del apuntado (alianza, 10/09), resuelta en vivo. Si difiere de la mía, lleva distintivo. */
+  guild?: Guild;
 };
 
 interface Props {
@@ -55,13 +58,15 @@ interface Props {
   apuntados?: Record<string, ApuntadoTimeline[]>;
   /** Solo miembros: email propio (pinta tu nombre en cyan). */
   yo?: string;
+  /** Solo miembros: mi guild (alianza, 10/09). Los apuntados de la otra llevan distintivo. */
+  miGuild?: Guild;
   /** Solo miembros: apuntarse/bajarse de un ítem (ocurrencia de calendario o privado). */
   onVoy?: (it: ItemTimeline) => void;
   /** Clave con el guardado en curso (deshabilita ese botón). */
   cambiando?: string | null;
 }
 
-export default function TimelineZig({ items, ahora, apuntados, yo, onVoy, cambiando }: Props) {
+export default function TimelineZig({ items, ahora, apuntados, yo, miGuild, onVoy, cambiando }: Props) {
   const [focoTap, setFocoTap] = useState<string | null>(null);
   const [focoHover, setFocoHover] = useState<string | null>(null);
 
@@ -99,6 +104,7 @@ export default function TimelineZig({ items, ahora, apuntados, yo, onVoy, cambia
           hayOtroFoco={foco !== it.clave}
           apuntados={apuntados?.[it.clave] ?? []}
           yo={yo}
+          miGuild={miGuild}
           cambiando={cambiando === it.clave}
           onTap={() => setFocoTap(focoTap === it.clave ? null : it.clave)}
           onHover={(dentro) => setFocoHover(dentro ? it.clave : null)}
@@ -137,6 +143,7 @@ function Fila({
   hayOtroFoco,
   apuntados,
   yo,
+  miGuild,
   cambiando,
   onTap,
   onHover,
@@ -150,6 +157,7 @@ function Fila({
   hayOtroFoco: boolean;
   apuntados: ApuntadoTimeline[];
   yo?: string;
+  miGuild?: Guild;
   cambiando: boolean;
   onTap: () => void;
   onHover: (dentro: boolean) => void;
@@ -219,6 +227,7 @@ function Fila({
             enfocada={enfocada}
             apuntados={apuntados}
             yo={yo}
+            miGuild={miGuild}
             cambiando={cambiando}
             onVoy={onVoy}
           />
@@ -233,6 +242,7 @@ function CuerpoTarjeta({
   enfocada,
   apuntados,
   yo,
+  miGuild,
   cambiando,
   onVoy,
 }: {
@@ -240,6 +250,7 @@ function CuerpoTarjeta({
   enfocada: boolean;
   apuntados: ApuntadoTimeline[];
   yo?: string;
+  miGuild?: Guild;
   cambiando: boolean;
   onVoy?: () => void;
 }) {
@@ -248,18 +259,37 @@ function CuerpoTarjeta({
       <>
         <p className="font-body text-sm font-bold text-text-primary leading-tight">
           {it.icono} {it.nombre}
-          <span className="font-body text-[9px] uppercase tracking-wider text-success-green ml-1.5">
-            guild
-          </span>
+          {/* Distintivo (alianza, 10/09): "guild" si es nuestro; "🤝 <la otra guild>" si nos lo compartieron. */}
+          {it.ajeno ? (
+            <span
+              className="font-body text-[9px] uppercase tracking-wider text-luck-gold ml-1.5"
+              title={`Lo compartió ${GUILD_LABEL[it.guild]}`}
+            >
+              {GUILD_ICONO.alianza} {GUILD_TAG[it.guild]}
+            </span>
+          ) : (
+            <span className="font-body text-[9px] uppercase tracking-wider text-success-green ml-1.5">
+              guild
+              {it.compartido && (
+                <span className="text-luck-gold" title={`Compartido con ${GUILD_LABEL[otraGuild(it.guild)]}`}>
+                  {" "}· {GUILD_ICONO.alianza} compartido
+                </span>
+              )}
+            </span>
+          )}
         </p>
         <Countdown enCurso={false} faltanSeg={Math.round((it.inicioMs - Date.now()) / 1000)} />
         {/* Desplegado por defecto (31/08): detalle, apuntados y Me apunto se ven siempre. */}
         <p className="font-body text-[11px] text-text-secondary mt-1">
-          {it.texto} <span className="font-numeric text-text-primary">{it.hm}</span> · dato nuestro, no
-          está en la timeline pública.
+          {it.texto} <span className="font-numeric text-text-primary">{it.hm}</span>
+          {it.ajeno
+            ? ` · lo compartió ${GUILD_LABEL[it.guild]}: si podés, dales una mano.`
+            : it.compartido
+              ? ` · dato nuestro, compartido con ${GUILD_LABEL[otraGuild(it.guild)]}.`
+              : " · dato nuestro, no está en la timeline pública."}
         </p>
         {yo !== undefined && (
-          <BloqueApuntados apuntados={apuntados} yo={yo} cambiando={cambiando} onVoy={onVoy} />
+          <BloqueApuntados apuntados={apuntados} yo={yo} miGuild={miGuild} cambiando={cambiando} onVoy={onVoy} />
         )}
       </>
     );
@@ -307,7 +337,7 @@ function CuerpoTarjeta({
 
           {/* apuntados con nombre (solo miembros) */}
           {yo !== undefined && esApuntable(ev) && (
-            <BloqueApuntados apuntados={apuntados} yo={yo} cambiando={cambiando} onVoy={onVoy} />
+            <BloqueApuntados apuntados={apuntados} yo={yo} miGuild={miGuild} cambiando={cambiando} onVoy={onVoy} />
           )}
           {yo !== undefined && !esApuntable(ev) && (
             <p className="font-body text-[10px] text-text-muted mt-1.5">No se apunta.</p>
@@ -318,15 +348,33 @@ function CuerpoTarjeta({
   );
 }
 
+/**
+ * Distintivo de guild de un apuntado (alianza, 10/09): solo si su guild es
+ * distinta de la mía. Lo usan la timeline y la tarjeta de carga.
+ */
+export function TagGuildApuntado({ guild, miGuild }: { guild?: Guild; miGuild?: Guild }) {
+  if (!guild || !miGuild || guild === miGuild) return null;
+  return (
+    <span
+      className="font-body text-[8px] uppercase tracking-wider text-luck-gold border border-luck-gold/40 rounded px-1 leading-4"
+      title={GUILD_LABEL[guild]}
+    >
+      {GUILD_TAG[guild]}
+    </span>
+  );
+}
+
 /** Apuntados con nombre + botón Me apunto / ✓ Voy. Compartido por calendario y privados. */
 function BloqueApuntados({
   apuntados,
   yo,
+  miGuild,
   cambiando,
   onVoy,
 }: {
   apuntados: ApuntadoTimeline[];
   yo: string;
+  miGuild?: Guild;
   cambiando: boolean;
   onVoy?: () => void;
 }) {
@@ -344,6 +392,7 @@ function BloqueApuntados({
             >
               <AvatarRaza raza={a.raza} src={a.avatarUrl} size={16} />
               {a.personaje}
+              <TagGuildApuntado guild={a.guild} miGuild={miGuild} />
             </span>
           ))}
         </div>

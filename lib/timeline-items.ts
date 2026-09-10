@@ -16,6 +16,7 @@ import {
   hmServidor,
 } from "./registros";
 import type { EventoRegistroRow, TipoEventoRegistro } from "./database.types";
+import { guildDe, type Guild } from "./guilds";
 
 // =====================================================
 // Ítems
@@ -34,6 +35,14 @@ export type ItemTimeline =
       /** "abre a las" / "respawnea a las". */
       texto: string;
       clave: string;
+      /** Id del registro vigente (para apuntarse y buscar sus apuntados). */
+      registroId: string;
+      /** Guild dueña del registro (alianza, 10/09). */
+      guild: Guild;
+      /** true si el registro está marcado "Compartir con la alianza". */
+      compartido: boolean;
+      /** true si es de LA OTRA guild (llegó porque lo compartieron). */
+      ajeno: boolean;
     };
 
 export function inicioDe(it: ItemTimeline): number {
@@ -61,36 +70,58 @@ export function itemsDeCalendario(ocurrencias: Ocurrencia[]): ItemTimeline[] {
   }));
 }
 
+/** Clave de un privado en la timeline: `priv-<tipo>` (propio) o `priv-<tipo>-<guild>` (ajeno). */
+export function clavePrivado(tipo: TipoEventoRegistro, ajeno: boolean, guild: Guild): string {
+  return ajeno ? `priv-${tipo}-${guild}` : `priv-${tipo}`;
+}
+
 /**
  * Suma los privados vigentes que caigan en la ventana y devuelve todo
  * ordenado por inicio. Los privados vencidos o "desconocido" (Gaion sin
  * captura fresca) no entran.
+ *
+ * Alianza (10/09): `compartidos` son los vigentes de LA OTRA guild marcados
+ * "Compartir con la alianza". Entran igual que los propios, con `ajeno = true`,
+ * y conviven con el propio del mismo tipo si lo hay (dos Gaion en la timeline,
+ * cada uno con su distintivo).
  */
 export function intercalarPrivados(
   items: ItemTimeline[],
   vigentes: Partial<Record<TipoEventoRegistro, EventoRegistroRow>>,
   ahoraMs: number,
   ventanaHs = 24,
+  compartidos: Partial<Record<TipoEventoRegistro, EventoRegistroRow>> = {},
 ): ItemTimeline[] {
   const out = [...items];
-  for (const cfg of EVENTOS_REGISTRO) {
-    const reg = vigentes[cfg.tipo];
-    if (!reg) continue;
-    const v = vistaDeRegistro(cfg, reg, ahoraMs);
-    if (v.desconocido || v.estado.vencido) continue;
-    const ms = v.estado.resultadoMs;
-    if (ms < ahoraMs - 5 * 60_000 || ms > ahoraMs + ventanaHs * 3_600_000) continue;
-    out.push({
-      clase: "privado",
-      tipo: cfg.tipo,
-      nombre: cfg.nombre,
-      icono: cfg.icono,
-      inicioMs: ms,
-      hm: hmServidor(ms),
-      diasExtra: v.estado.diasExtra,
-      texto: cfg.etiquetaResultado,
-      clave: `priv-${cfg.tipo}`,
-    });
+  const fuentes: { regs: typeof vigentes; ajeno: boolean }[] = [
+    { regs: vigentes, ajeno: false },
+    { regs: compartidos, ajeno: true },
+  ];
+  for (const { regs, ajeno } of fuentes) {
+    for (const cfg of EVENTOS_REGISTRO) {
+      const reg = regs[cfg.tipo];
+      if (!reg) continue;
+      const v = vistaDeRegistro(cfg, reg, ahoraMs);
+      if (v.desconocido || v.estado.vencido) continue;
+      const ms = v.estado.resultadoMs;
+      if (ms < ahoraMs - 5 * 60_000 || ms > ahoraMs + ventanaHs * 3_600_000) continue;
+      const guild = guildDe(reg.guild);
+      out.push({
+        clase: "privado",
+        tipo: cfg.tipo,
+        nombre: cfg.nombre,
+        icono: cfg.icono,
+        inicioMs: ms,
+        hm: hmServidor(ms),
+        diasExtra: v.estado.diasExtra,
+        texto: cfg.etiquetaResultado,
+        clave: clavePrivado(cfg.tipo, ajeno, guild),
+        registroId: reg.id,
+        guild,
+        compartido: reg.compartido_alianza === true,
+        ajeno,
+      });
+    }
   }
   return out.sort((a, b) => inicioDe(a) - inicioDe(b));
 }

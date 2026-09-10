@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FieldLabel, TextInput } from "@/components/ui/FormField";
+import { GUILD_ICONO, GUILD_LABEL, GUILDS, guildDe, otraGuild, type Guild } from "@/lib/guilds";
 import {
   actualizarMiembro,
   altaMiembroCompleta,
@@ -17,17 +18,23 @@ import type { MiembroRow } from "@/lib/database.types";
 // Alta en UN paso: crea el usuario de Authentication (con clave generada)
 // y la fila en `miembros`, vía app/api/admin/miembros (servidor).
 // Requiere SUPABASE_SERVICE_ROLE_KEY en Vercel.
+// Alianza (10/09): al dar de alta se elige la guild (propia / alianza); la
+// columna "Guild" de la tabla se cambia con un click.
 // =====================================================
 
 const URL_MIEMBROS = "https://camustore-web.vercel.app/miembros";
 
-function mensajeBienvenida(personaje: string, email: string, clave: string | null): string {
+function mensajeBienvenida(personaje: string, email: string, clave: string | null, guild: Guild): string {
   const lineaClave = clave ? `Tu clave es: ${clave}\n` : "Entrás con la clave que ya tenías.\n";
+  const cierre =
+    guild === "alianza"
+      ? `Ahí está la timeline de eventos y los timers de Gaion, Kundun y Cryonox de tu guild. Cuando alguno se comparte con la alianza, lo vemos las dos guilds.`
+      : `Ahí están los timers compartidos de Gaion, Kundun y Cryonox: el que carga, lo ve toda la guild.`;
   return (
     `Hola ${personaje}! Te di de alta en la zona de miembros de CamuStore.\n` +
     `Entrá en ${URL_MIEMBROS} con tu email ${email}.\n` +
     lineaClave +
-    `Ahí están los timers compartidos de Gaion, Kundun y Cryonox: el que carga, lo ven todos.`
+    cierre
   );
 }
 
@@ -62,6 +69,17 @@ export default function SeccionMiembros() {
     cargar();
   }, []);
 
+  async function toggleGuild(m: MiembroRow) {
+    const nueva = otraGuild(guildDe(m.guild));
+    if (!confirm(`¿Pasar a ${m.personaje} a "${GUILD_LABEL[nueva]}"? Va a ver los horarios privados de esa guild, no los de la actual.`)) return;
+    try {
+      await actualizarMiembro(m.id, { guild: nueva });
+      cargar();
+    } catch (e) {
+      alert("Error: " + (e instanceof Error ? e.message : e));
+    }
+  }
+
   async function toggleActivo(m: MiembroRow) {
     try {
       await actualizarMiembro(m.id, { activo: !m.activo });
@@ -75,7 +93,7 @@ export default function SeccionMiembros() {
     if (!confirm(`¿Generar una clave nueva para ${m.personaje}? La anterior deja de servir.`)) return;
     try {
       const clave = await nuevaClaveMiembro(m.email);
-      setClaveReciente({ email: m.email, personaje: m.personaje, clave, usuarioYaExistia: false });
+      setClaveReciente({ email: m.email, personaje: m.personaje, clave, usuarioYaExistia: false, guild: guildDe(m.guild) });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       alert("Error: " + (e instanceof Error ? e.message : e));
@@ -94,6 +112,7 @@ export default function SeccionMiembros() {
   }
 
   const activos = miembros.filter((m) => m.activo).length;
+  const deAlianza = miembros.filter((m) => guildDe(m.guild) === "alianza").length;
 
   return (
     <div className="space-y-6">
@@ -101,6 +120,7 @@ export default function SeccionMiembros() {
         <h2 className="font-display font-bold text-2xl text-text-primary">👥 Miembros</h2>
         <span className="font-body text-xs text-text-secondary">
           {activos} activo{activos === 1 ? "" : "s"} · {miembros.length} en total
+          {deAlianza > 0 && <> · {deAlianza} de {GUILD_LABEL.alianza}</>}
         </span>
       </div>
 
@@ -128,6 +148,7 @@ export default function SeccionMiembros() {
               <tr className="border-b border-border-base text-left font-body text-xs uppercase tracking-wider text-text-muted">
                 <th className="py-2 pr-3">Personaje</th>
                 <th className="py-2 pr-3">Email</th>
+                <th className="py-2 pr-3">Guild</th>
                 <th className="py-2 pr-3">Estado</th>
                 <th className="py-2 pr-3 hidden md:table-cell">Alta</th>
                 <th className="py-2"></th>
@@ -138,6 +159,19 @@ export default function SeccionMiembros() {
                 <tr key={m.id} className="border-b border-border-base/40 font-body hover:bg-bg-card/30">
                   <td className="py-2 pr-3 text-text-primary font-bold">{m.personaje}</td>
                   <td className="py-2 pr-3 text-text-secondary break-all">{m.email}</td>
+                  <td className="py-2 pr-3">
+                    <button
+                      onClick={() => toggleGuild(m)}
+                      className={`badge border transition-colors whitespace-nowrap ${
+                        guildDe(m.guild) === "alianza"
+                          ? "bg-luck-gold/10 text-luck-gold border-luck-gold/40 hover:bg-luck-gold/20"
+                          : "bg-success-green/10 text-success-green border-success-green/40 hover:bg-success-green/20"
+                      }`}
+                      title="Click para pasarlo a la otra guild"
+                    >
+                      {GUILD_ICONO[guildDe(m.guild)]} {GUILD_LABEL[guildDe(m.guild)]}
+                    </button>
+                  </td>
                   <td className="py-2 pr-3">
                     <button
                       onClick={() => toggleActivo(m)}
@@ -178,8 +212,10 @@ export default function SeccionMiembros() {
 
       <p className="font-body text-[11px] text-text-muted">
         <span className="text-text-secondary">Inactivo</span> = no puede entrar pero conserva usuario y clave.{" "}
-        <span className="text-text-secondary">Baja</span> = se borra el usuario; si vuelve, se lo da de alta de nuevo.
-        Vos entrás a /miembros aunque no estés en la lista (sos admin); agregate si querés firmar con tu personaje.
+        <span className="text-text-secondary">Baja</span> = se borra el usuario; si vuelve, se lo da de alta de nuevo.{" "}
+        <span className="text-text-secondary">Guild</span> = qué horarios privados ve (los de{" "}
+        {GUILD_LABEL.propia} o los de {GUILD_LABEL.alianza}); un click lo cambia.
+        Vos entrás a /miembros aunque no estés en la lista (sos admin, contás como {GUILD_LABEL.propia}); agregate si querés firmar con tu personaje.
       </p>
     </div>
   );
@@ -192,6 +228,7 @@ export default function SeccionMiembros() {
 function AltaForm({ onSaved }: { onSaved: (r: AltaResultado) => void }) {
   const [email, setEmail] = useState("");
   const [personaje, setPersonaje] = useState("");
+  const [guild, setGuild] = useState<Guild>("propia");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -203,10 +240,10 @@ function AltaForm({ onSaved }: { onSaved: (r: AltaResultado) => void }) {
     setGuardando(true);
     setError(null);
     try {
-      const r = await altaMiembroCompleta(email, personaje);
+      const r = await altaMiembroCompleta(email, personaje, guild);
       setEmail("");
       setPersonaje("");
-      onSaved(r);
+      onSaved({ ...r, guild });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo dar de alta.");
     } finally {
@@ -219,8 +256,30 @@ function AltaForm({ onSaved }: { onSaved: (r: AltaResultado) => void }) {
       <h3 className="font-display font-bold text-base text-text-primary mb-1">Nuevo miembro</h3>
       <p className="font-body text-xs text-text-secondary mb-3">
         Se crea el usuario con una clave generada y queda listo para entrar. La clave aparece acá
-        arriba para que se la pases por WhatsApp.
+        arriba para que se la pases por WhatsApp. Mismo login para las dos guilds: la guild define
+        qué horarios privados ve.
       </p>
+      <div className="mb-3">
+        <FieldLabel>Guild</FieldLabel>
+        <div className="inline-flex bg-bg-card border border-border-base rounded p-0.5 gap-0.5">
+          {GUILDS.map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setGuild(g)}
+              className={`px-4 py-1.5 rounded font-body text-xs uppercase tracking-wider transition-all ${
+                guild === g
+                  ? g === "alianza"
+                    ? "bg-luck-gold text-bg-deep font-bold"
+                    : "bg-success-green text-bg-deep font-bold"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {GUILD_ICONO[g]} {GUILD_LABEL[g]}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
         <div>
           <FieldLabel>Email</FieldLabel>
@@ -260,7 +319,7 @@ function PanelClave({ datos, onCerrar }: { datos: AltaResultado; onCerrar: () =>
   }
 
   async function copiarMensaje() {
-    if (await copiarTexto(mensajeBienvenida(datos.personaje, datos.email, datos.clave))) {
+    if (await copiarTexto(mensajeBienvenida(datos.personaje, datos.email, datos.clave, datos.guild ?? "propia"))) {
       setCopiadoMsg(true);
       setTimeout(() => setCopiadoMsg(false), 1800);
     }
@@ -276,6 +335,15 @@ function PanelClave({ datos, onCerrar }: { datos: AltaResultado; onCerrar: () =>
           <p className="font-body text-sm text-text-primary">
             <span className="font-bold">{datos.personaje}</span>{" "}
             <span className="text-text-secondary break-all">({datos.email})</span>
+            {datos.guild && (
+              <span className={`ml-2 badge border ${
+                datos.guild === "alianza"
+                  ? "bg-luck-gold/10 text-luck-gold border-luck-gold/40"
+                  : "bg-success-green/10 text-success-green border-success-green/40"
+              }`}>
+                {GUILD_ICONO[datos.guild]} {GUILD_LABEL[datos.guild]}
+              </span>
+            )}
           </p>
         </div>
         <button

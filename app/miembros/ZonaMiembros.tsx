@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "@/lib/auth";
 import {
   cargarAsistencias,
-  cargarAvatares,
+  cargarPerfiles,
   cargarRegistros,
   contarAportes,
   eliminarRegistro,
@@ -14,13 +14,15 @@ import {
   subirMiAvatar,
   type Aporte,
   type MapaAvatares,
+  type MapaGuilds,
   type RegistrosCargados,
   type SesionMiembro,
 } from "@/lib/miembros";
+import { GUILD_ICONO, GUILD_LABEL, guildDe, otraGuild } from "@/lib/guilds";
 import AvatarRaza, { RAZAS_AVATAR, RAZA_AVATAR_LABEL } from "@/components/ui/AvatarRaza";
 import RecorteAvatar from "@/components/ui/RecorteAvatar";
 import { AVATAR_PX } from "@/lib/avatar-imagen";
-import type { AsistenciaRow, Raza } from "@/lib/database.types";
+import type { AsistenciaRow, EventoRegistroRow, Raza } from "@/lib/database.types";
 import {
   AVISOS_MIN,
   EVENTOS,
@@ -48,6 +50,9 @@ import TimelineMiembros from "./TimelineMiembros";
 // Zona de miembros: los tres timers compartidos + historial.
 // - Tick de 1 s para el "cuánto falta".
 // - Recarga de la DB cada 30 s y cada vez que la pestaña vuelve al frente.
+// - Alianza (10/09): la misma página para las dos guilds. Cada una ve SUS
+//   registros; los que la otra guild comparte llegan como `compartidos` y van
+//   solo a la timeline (con distintivo) y a los avisos.
 // =====================================================
 
 const INTERVALO_RECARGA_MS = 30 * 1000;
@@ -73,6 +78,8 @@ export default function ZonaMiembros({ sesion }: Props) {
   const [miAvatarUrl, setMiAvatarUrl] = useState<string | null>(sesion.miembro?.avatar_url ?? null);
   /** email → foto de cada miembro, para pintar apuntados. Se recarga junto con los registros. */
   const [avatares, setAvatares] = useState<MapaAvatares>({});
+  /** email → guild de cada miembro (alianza, 10/09): distintivo en apuntados de la otra guild. */
+  const [guilds, setGuilds] = useState<MapaGuilds>({});
   /** Archivo elegido y todavía sin encuadrar (abre el modal de recorte). */
   const [archivoAvatar, setArchivoAvatar] = useState<File | null>(null);
   const [quitandoAvatar, setQuitandoAvatar] = useState(false);
@@ -101,18 +108,24 @@ export default function ZonaMiembros({ sesion }: Props) {
 
   const recargar = useCallback(async () => {
     try {
-      const d = await cargarRegistros();
+      const d = await cargarRegistros(sesion.guild);
       setDatos(d);
       setError(null);
       setUltimaCarga(Date.now());
-      contarAportes().then(setAportes).catch(() => {});
-      const ids = Object.values(d.vigentes).map((r) => r.id);
+      contarAportes(sesion.guild).then(setAportes).catch(() => {});
+      // Apuntados de mis vigentes + de los compartidos por la otra guild (10/09).
+      const ids = [...Object.values(d.vigentes), ...Object.values(d.compartidos)].map((r) => r.id);
       cargarAsistencias(ids).then(setAsistencias).catch(() => {});
-      cargarAvatares().then(setAvatares).catch(() => {});
+      cargarPerfiles()
+        .then((p) => {
+          setAvatares(p.avatares);
+          setGuilds(p.guilds);
+        })
+        .catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar los registros.");
     }
-  }, []);
+  }, [sesion.guild]);
 
   // Tick de 1 s.
   useEffect(() => {
@@ -154,11 +167,18 @@ export default function ZonaMiembros({ sesion }: Props) {
 
   // Disparo de avisos: en cada tick mira los tres eventos y, al cruzar un
   // umbral (15 min · 5 min · momento exacto), avisa UNA vez por umbral.
+  // Alianza (10/09): los compartidos por la otra guild también avisan (están en
+  // la timeline y uno puede haberse apuntado a ayudar); la clave lleva el id.
   useEffect(() => {
     if (ahora === null || !datos) return;
+    const candidatos: { config: (typeof EVENTOS)[number]; registro: EventoRegistroRow; ajeno: boolean }[] = [];
     for (const config of EVENTOS) {
-      const registro = datos.vigentes[config.tipo];
-      if (!registro) continue;
+      const propio = datos.vigentes[config.tipo];
+      if (propio) candidatos.push({ config, registro: propio, ajeno: false });
+      const ajeno = datos.compartidos[config.tipo];
+      if (ajeno) candidatos.push({ config, registro: ajeno, ajeno: true });
+    }
+    for (const { config, registro, ajeno } of candidatos) {
       const { estado } = vistaDeRegistro(config, registro, ahora);
 
       // El umbral vigente: el más urgente que aplique.
@@ -172,19 +192,20 @@ export default function ZonaMiembros({ sesion }: Props) {
       }
       if (umbral === null) continue;
 
-      const clave = `${config.tipo}:${estado.resultadoMs}:${umbral}`;
+      const base = `${config.tipo}:${registro.id}:${estado.resultadoMs}`;
+      const clave = `${base}:${umbral}`;
       if (disparadosRef.current.has(clave)) continue;
       // Marcar también los umbrales menos urgentes para no encadenar beeps
       // (ej.: si entrás faltando 4 min, suena solo el de 5, no el de 15).
       for (const m of AVISOS_MIN) {
-        if (m >= umbral) disparadosRef.current.add(`${config.tipo}:${estado.resultadoMs}:${m}`);
+        if (m >= umbral) disparadosRef.current.add(`${base}:${m}`);
       }
       disparadosRef.current.add(clave);
 
       if (avisosOn) {
         sonarAviso(umbral);
         vibrar(umbral);
-        const titulo = `${config.icono} ${config.nombre}`;
+        const titulo = `${config.icono} ${config.nombre}${ajeno ? ` (${GUILD_ICONO.alianza} ${GUILD_LABEL[guildDe(registro.guild)]})` : ""}`;
         const cuerpo =
           umbral === 0
             ? `¡${config.tipo === "gaion" ? "Abrió" : "Respawneó"}! (${estado.hms} hora servidor)`
@@ -312,7 +333,7 @@ export default function ZonaMiembros({ sesion }: Props) {
               Zona de miembros
             </h1>
             <p className="font-body text-sm text-text-secondary mt-3 leading-relaxed">
-              Lo que carga uno lo ven todos. Horas en{" "}
+              Lo que carga uno lo ve toda tu guild. Horas en{" "}
               <span className="text-luck-gold font-bold">hora servidor</span>; la cuenta regresiva usa
               el reloj de tu dispositivo.
             </p>
@@ -320,6 +341,16 @@ export default function ZonaMiembros({ sesion }: Props) {
           <div className="flex items-center gap-2 shrink-0">
             <span className="badge bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/40">
               {sesion.personaje}
+            </span>
+            <span
+              className={`badge border ${
+                sesion.guild === "alianza"
+                  ? "bg-luck-gold/10 text-luck-gold border-luck-gold/40"
+                  : "bg-success-green/10 text-success-green border-success-green/40"
+              }`}
+              title="Tu guild: define qué horarios privados ves"
+            >
+              {GUILD_ICONO[sesion.guild]} {GUILD_LABEL[sesion.guild]}
             </span>
             <button
               onClick={() => signOut().then(() => location.reload())}
@@ -385,7 +416,7 @@ export default function ZonaMiembros({ sesion }: Props) {
             </span>
             <span className="block font-body text-[11px] text-text-muted mt-0.5">
               {noPublicoAbierto
-                ? "Gaion, Kundun y Cryonox: acá se cargan los registros. En la timeline se ven intercalados."
+                ? `Gaion, Kundun y Cryonox de tu guild: acá se cargan los registros. En la timeline se ven intercalados; con la tilde 🤝 los ve también ${GUILD_LABEL[otraGuild(sesion.guild)]}.`
                 : resumenPlegado.length > 0
                   ? <span className="text-luck-gold">{resumenPlegado.join(" · ")}</span>
                   : "Gaion, Kundun y Cryonox · nada por vencer en la próxima hora"}
@@ -406,6 +437,7 @@ export default function ZonaMiembros({ sesion }: Props) {
               })()}
               miRaza={miRaza}
               avatares={avatares}
+              guilds={guilds}
                   onGuardado={recargar}
                   onCambioAsistencia={recargar}
                 />
@@ -432,7 +464,7 @@ export default function ZonaMiembros({ sesion }: Props) {
             </span>
             <span className="block font-body text-xs text-text-secondary mt-1">
               {timelineAbierta
-                ? "El calendario completo con los datos de la guild intercalados. Tocá una fila para ver quién va y apuntarte a ese horario puntual."
+                ? "El calendario completo con los datos de la guild intercalados (y los que la alianza compartió, con 🤝). Tocá una fila para ver quién va y apuntarte a ese horario puntual."
                 : "Plegada · tocá para ver el calendario y los verdes de la guild."}
             </span>
           </button>
@@ -441,8 +473,10 @@ export default function ZonaMiembros({ sesion }: Props) {
               sesion={sesion}
               miRaza={miRaza}
               vigentes={datos?.vigentes ?? {}}
+              compartidos={datos?.compartidos ?? {}}
               asistenciasRegistros={asistencias}
               avatares={avatares}
+              guilds={guilds}
               onCambioAsistencia={recargar}
             />
           </div>
@@ -470,7 +504,8 @@ export default function ZonaMiembros({ sesion }: Props) {
                 const c = eventoPorTipo(r.tipo);
                 const resultadoMs = Date.parse(r.resultado_at);
                 const creadoMs = Date.parse(r.created_at);
-                const vigente = datos.vigentes[r.tipo]?.id === r.id;
+                const ajeno = guildDe(r.guild) !== sesion.guild;
+                const vigente = (ajeno ? datos.compartidos : datos.vigentes)[r.tipo]?.id === r.id;
                 return (
                   <li key={r.id} className="py-2 flex items-center gap-3 font-body text-sm">
                     <span className="text-lg leading-none" aria-hidden>
@@ -489,6 +524,14 @@ export default function ZonaMiembros({ sesion }: Props) {
                         {r.se_pelea && (
                           <span className="ml-2 badge bg-danger-red/15 text-danger-red border border-danger-red/40">
                             {textoSePelea(r.se_pelea_motivo)}
+                          </span>
+                        )}
+                        {r.compartido_alianza && (
+                          <span
+                            className="ml-2 badge bg-luck-gold/10 text-luck-gold border border-luck-gold/40"
+                            title={ajeno ? `Lo compartió ${GUILD_LABEL[guildDe(r.guild)]}` : `Compartido con ${GUILD_LABEL[otraGuild(sesion.guild)]}`}
+                          >
+                            {GUILD_ICONO.alianza} {ajeno ? `de ${GUILD_LABEL[guildDe(r.guild)]}` : "compartido"}
                           </span>
                         )}
                       </p>
@@ -521,7 +564,7 @@ export default function ZonaMiembros({ sesion }: Props) {
         <section className="mt-4 gamer-card rounded-lg p-5 sm:p-6">
           <h2 className="font-display font-bold text-base mb-1 text-text-primary">🏆 Ranking de aportes</h2>
           <p className="font-body text-[11px] text-text-muted mb-3">
-            Quién compartió más info (registros cargados de Gaion, Kundun y Cryonox, historial completo).
+            Quién compartió más info en tu guild (registros cargados de Gaion, Kundun y Cryonox, historial completo).
           </p>
           {aportes === null ? (
             <p className="font-body text-sm text-text-muted animate-pulse">Cargando…</p>
@@ -697,6 +740,15 @@ export default function ZonaMiembros({ sesion }: Props) {
                 <span className="text-neon-cyan">Me apunto</span> avisás que pensás ir; se ve tu avatar y tu nombre
                 debajo del timer. Es intención, no compromiso. Si alguien carga un horario nuevo, hay que apuntarse
                 de nuevo.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="text-neon-cyan font-bold">·</span>
+              <span>
+                <span className="text-luck-gold">🤝 Compartir con la alianza</span>: los horarios de Gaion, Kundun
+                y Cryonox son de tu guild y la otra no los ve. Si necesitás ayuda o no podés ir, marcá la tilde
+                (al cargar o después, desde la tarjeta): {GUILD_LABEL[otraGuild(sesion.guild)]} lo ve en su
+                timeline y puede apuntarse. Funciona igual en los dos sentidos.
               </span>
             </li>
             <li className="flex gap-3">

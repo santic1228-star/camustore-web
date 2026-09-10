@@ -3,6 +3,9 @@
  * Si cambia el schema de la DB, hay que actualizar este archivo.
  */
 
+import type { Guild } from "./guilds";
+export type { Guild };
+
 export type Categoria = "armadura" | "arma" | "ala" | "escudo";
 export type TipoItem = "s3" | "380" | "400";
 export type Raza = "Knight" | "Wizard" | "Elf" | "Gladiator" | "Lord" | "Summoner";
@@ -319,6 +322,8 @@ export interface MiembroRow {
   raza: Raza | null;
   /** Foto de avatar subida por el miembro (M4, 31/08). null = se ve el ícono de raza. */
   avatar_url: string | null;
+  /** A qué guild pertenece (alianza, 10/09). Default `propia`. Ver lib/guilds.ts. */
+  guild: Guild;
   created_at: string;
   updated_at: string;
 }
@@ -328,7 +333,23 @@ export type MiembroInsert = Pick<MiembroRow, "email" | "personaje"> & {
   notas?: string | null;
   raza?: Raza | null;
   avatar_url?: string | null;
+  guild?: Guild;
 };
+
+/**
+ * Fila de la vista `miembros_perfil` (alianza, 10/09): lo que un miembro puede
+ * ver de los demás (para pintar apuntados con foto y distintivo de guild),
+ * sin exponer las notas del admin. La ve cualquier miembro activo.
+ */
+export interface MiembroPerfilRow {
+  id: string;
+  email: string;
+  personaje: string;
+  raza: Raza | null;
+  avatar_url: string | null;
+  guild: Guild;
+  activo: boolean;
+}
 
 /** Por qué creemos que se va a pelear en ese evento (27/08). */
 export type MotivoPelea = "nos_vieron" | "lo_perdimos" | "otro";
@@ -349,6 +370,10 @@ export interface EventoRegistroRow {
   /** "Se pelea": otros guilds conocen el horario (27/08). Default false. */
   se_pelea: boolean;
   se_pelea_motivo: MotivoPelea | null;
+  /** Guild dueña del registro (alianza, 10/09). La otra guild NO lo ve salvo que esté compartido. */
+  guild: Guild;
+  /** "Compartir con la alianza" (10/09): la otra guild lo ve en su timeline y puede apuntarse. */
+  compartido_alianza: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -362,6 +387,8 @@ export type EventoRegistroInsert = Pick<
   notas?: string | null;
   se_pelea?: boolean;
   se_pelea_motivo?: MotivoPelea | null;
+  guild?: Guild;
+  compartido_alianza?: boolean;
 };
 
 // =====================================================

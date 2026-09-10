@@ -146,6 +146,8 @@ export interface RegistroNuevo {
   /** "Se pelea": otros guilds conocen el horario (27/08). */
   sePelea?: boolean;
   sePeleaMotivo?: MotivoPelea | null;
+  /** "Compartir con la alianza" (10/09): la otra guild lo ve y puede apuntarse. */
+  compartirAlianza?: boolean;
 }
 
 // =====================================================
@@ -286,6 +288,11 @@ export interface ExtrasMensaje {
   sePeleaMotivo?: MotivoPelea | null;
   /** Personajes apuntados. */
   van?: string[];
+  /**
+   * Alianza (10/09): nombre de la guild con la que está compartido (si lo cargó
+   * mi guild) o de la que lo compartió (si es ajeno). Vacío = no compartido.
+   */
+  compartidoCon?: string;
 }
 
 /** Texto para compartir en el chat de la guild. */
@@ -293,6 +300,7 @@ export function mensajeRegistro(config: EventoConfig, e: EstadoRegistro, extras:
   const dia = e.diasExtra !== 0 ? ` ${etiquetaDiaServidor(e.diasExtra)} (${fechaCortaServidor(e.resultadoMs)})` : "";
   const falta = e.listo ? "" : ` · ${textoFaltaRegistro(e).toLowerCase()}`;
   const pelea = extras.sePelea ? ` · ${textoSePelea(extras.sePeleaMotivo)}` : "";
+  const alianza = extras.compartidoCon ? ` · 🤝 compartido con ${extras.compartidoCon}` : "";
   const van = extras.van && extras.van.length > 0 ? `\n${textoVan(extras.van)}` : "";
-  return `${config.icono} ${config.nombre} ${config.etiquetaResultado} ${e.hms} hora servidor${dia}${falta}${pelea}${van}`;
+  return `${config.icono} ${config.nombre} ${config.etiquetaResultado} ${e.hms} hora servidor${dia}${falta}${pelea}${alianza}${van}`;
 }
