@@ -417,3 +417,23 @@ export type CalAsistenciaInsert = Pick<CalAsistenciaRow, "evento_id" | "inicio" 
   miembro_id?: string | null;
   raza?: Raza | null;
 };
+
+// =====================================================
+// Estado del server (10/09/2026) — tabla `server_status_log`
+// (SQL: camustore_server_status.sql)
+//
+// Append-only y SOLO ante cambios: una fila cuando el server se cae, otra
+// cuando vuelve. La última fila es el estado vigente y su `created_at` es el
+// "desde cuándo" que muestra el header. De regalo queda el historial de caídas.
+// =====================================================
+
+export interface ServerStatusRow {
+  id: number;
+  online: boolean;
+  detalle: string | null;
+  created_at: string;
+}
+
+export type ServerStatusInsert = Pick<ServerStatusRow, "online"> & {
+  detalle?: string | null;
+};

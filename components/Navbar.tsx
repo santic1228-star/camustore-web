@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { CONFIG } from "@/lib/config";
 import { HERRAMIENTAS_ACTIVAS } from "@/lib/herramientas";
+import EstadoServer from "@/components/EstadoServer";
 
 export default function Navbar() {
   const [abierto, setAbierto] = useState(false);
@@ -57,6 +58,11 @@ export default function Navbar() {
             {CONFIG.STORE_NAME}
           </span>
         </Link>
+
+        {/* Estado del server. En lg+ se centra en la barra (absolute sobre el
+            contenedor relative); abajo de eso queda como un puntito entre el
+            logo y la nav, para no pisarse con los links que ya scrollean. */}
+        <EstadoServer />
 
         <nav className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <NavLink href="/items">Catálogo</NavLink>
