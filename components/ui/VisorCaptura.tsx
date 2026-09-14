@@ -110,10 +110,13 @@ export default function VisorCaptura({ className = "" }: { className?: string })
     if (f) mostrar(f);
   };
 
-  // Con imagen, en pantallas grandes el recuadro se abre al ancho de la ventana
-  // (la columna de /miembros mide 672px; una tira del HUD mide ~1000).
+  // Con imagen, en pantallas grandes el recuadro mide LO QUE MIDE LA IMAGEN,
+  // centrado respecto de la ventana y con tope en el ancho de la ventana. Así
+  // una tira de 796px no abre una caja de 2500px (corrección 14/09 tras la
+  // primera prueba de Santi) y una de 1000px puede salirse de la columna de
+  // 672px de /miembros sin deformarse.
   const ancho = captura
-    ? "lg:w-[calc(100vw-4rem)] lg:max-w-none lg:ml-[calc(50%-50vw+2rem)]"
+    ? "lg:relative lg:left-1/2 lg:-translate-x-1/2 lg:w-max lg:max-w-[calc(100vw-4rem)]"
     : "";
 
   return (
