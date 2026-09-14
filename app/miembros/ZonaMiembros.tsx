@@ -45,6 +45,7 @@ import {
 } from "@/lib/avisos";
 import TarjetaEvento from "./TarjetaEvento";
 import TimelineMiembros from "./TimelineMiembros";
+import VisorCaptura from "@/components/ui/VisorCaptura";
 
 // =====================================================
 // Zona de miembros: los tres timers compartidos + historial.
@@ -397,6 +398,9 @@ export default function ZonaMiembros({ sesion }: Props) {
             {avisosOn ? "Activados ✓" : "Activar"}
           </button>
         </div>
+
+        {/* ============ Visor de capturas (14/09; solo desktop, en memoria, no guarda) ============ */}
+        <VisorCaptura className="mb-4" />
 
         {/* ============ Eventos de horario no público (reorden 31/08, §13) ============ */}
         <section className="gamer-card rounded-lg overflow-hidden">

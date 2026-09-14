@@ -20,12 +20,13 @@ export type Guild = "propia" | "alianza";
 export const GUILDS: readonly Guild[] = ["propia", "alianza"];
 
 /**
- * Nombres para mostrar. Si Santi pasa los nombres reales de las dos guilds,
- * se cambian ACÁ y se reflejan en todos lados (admin, tarjetas, timeline).
+ * Nombres para mostrar (reales desde el 14/09/2026, P12 cerrada): la guild
+ * propia es FreakS y la aliada es NewLvl. Si alguna cambia de nombre, se
+ * cambia ACÁ y se refleja en todos lados (admin, tarjetas, timeline).
  */
 export const GUILD_LABEL: Record<Guild, string> = {
-  propia: "Camus",
-  alianza: "Alianza",
+  propia: "FreakS",
+  alianza: "NewLvl",
 };
 
 /** Etiqueta corta para badges (minúscula, una palabra). */
